@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>晨昏线 · 动态教学 · 卫星实拍</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', 'PingFang SC', sans-serif; background: #0a0a1a; color: white; }
+        #info {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+            padding: 14px 24px; border-radius: 40px;
+            border-left: 4px solid #ff6688;
+            pointer-events: none; z-index: 10;
+        }
+        #info h1 { margin: 0; font-size: 1.5rem; font-weight: 500; letter-spacing: 2px; color: #fff6e5; }
+        #info h1 span { color: #ff6688; font-weight: 700; margin-right: 6px; }
+        #info .sub { font-size: 0.75rem; opacity: 0.7; letter-spacing: 1px; margin-top: 4px; }
+        
+        #controls-panel {
+            position: absolute; bottom: 30px; left: 0; right: 0;
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 30px;
+            background: rgba(10, 10, 25, 0.7); backdrop-filter: blur(8px);
+            padding: 18px 28px; border-radius: 60px;
+            max-width: 600px; margin: 0 auto;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            z-index: 20; pointer-events: auto;
+        }
+        .control-group {
+            display: flex; align-items: center; gap: 10px;
+            color: #d0d9ff; font-size: 0.85rem;
+        }
+        .control-group input[type="range"] {
+            width: 100px; height: 4px; background: #3a4a8c; border-radius: 10px;
+            -webkit-appearance: none; appearance: none; outline: none;
+        }
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #ff6688; cursor: pointer;
+            box-shadow: 0 0 12px #ff6688aa; border: 1px solid #fff5;
+        }
+        .control-group label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .control-group input[type="checkbox"] {
+            width: 18px; height: 18px; accent-color: #ff6688; transform: scale(1.1); cursor: pointer;
+        }
+        .btn-reset {
+            background: #2a3a7a; border: none; color: white;
+            padding: 6px 18px; border-radius: 30px; font-size: 0.8rem;
+            cursor: pointer; transition: 0.2s;
+            border: 1px solid #4a6aaa;
+        }
+        .btn-reset:hover { background: #3a5a9a; box-shadow: 0 0 16px #3a5aaa66; transform: scale(1.02); }
+
+        #legend {
+            position: absolute; bottom: 100px; right: 20px;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            padding: 10px 16px; border-radius: 30px;
+            font-size: 0.7rem; color: #aab8ff;
+            border: 1px solid #2a3a7a;
+            pointer-events: none; z-index: 15;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .color-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+
+        #knowledge-panel {
+            position: absolute; bottom: 100px; left: 20px;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(6px);
+            padding: 14px 20px; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            max-width: 280px; font-size: 0.7rem; line-height: 1.6;
+            color: #ccd9ff; pointer-events: none; z-index: 15;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+        #knowledge-panel .title {
+            color: #ff6688; font-weight: 600; letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255,102,136,0.2); padding-bottom: 4px; margin-bottom: 6px;
+        }
+        #knowledge-panel .highlight { color: #ff6688; font-weight: 500; }
+
+        @media (max-width: 700px) {
+            #controls-panel { flex-direction: column; align-items: center; gap: 12px; border-radius: 30px; padding: 16px 20px; max-width: 94%; bottom: 16px; }
+            .control-group { width: 100%; justify-content: center; flex-wrap: wrap; }
+            #info { top: 12px; left: 12px; padding: 8px 16px; }
+            #info h1 { font-size: 1.2rem; }
+            #legend { bottom: 170px; right: 10px; padding: 6px 12px; font-size: 0.6rem; }
+            #knowledge-panel { bottom: 140px; left: 10px; max-width: 200px; padding: 10px 14px; font-size: 0.6rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1><span>🌓</span> 晨昏线 · 卫星实拍</h1>
+        <div class="sub">地球自转 · 昼半球与夜半球 · 高清纹理</div>
+    </div>
+
+    <div id="legend">
+        <div class="legend-item"><span class="color-dot" style="background:#ffaa44;"></span> 太阳</div>
+        <div class="legend-item"><span class="color-dot" style="background:#3a8cff;"></span> 地球</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ff6688;"></span> 晨昏圈</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ffff44;"></span> 光线</div>
+    </div>
+
+    <div id="knowledge-panel">
+        <div class="title">🌓 晨昏线 · 知识要点</div>
+        <div>
+            <span class="highlight">晨昏线</span> 是 <strong>昼半球</strong> 与 <strong>夜半球</strong> 的分界线。<br>
+            · 晨线：从夜半球进入昼半球<br>
+            · 昏线：从昼半球进入夜半球<br>
+            · 晨昏圈始终 <strong>垂直于太阳光线</strong><br>
+            · 地球自转 → 晨昏线相对地球移动<br>
+            <span style="opacity:0.6; font-size:0.6rem;">晨昏圈是大圆，平分地球</span>
+        </div>
+        <div style="margin-top:4px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px; font-size:0.6rem; opacity:0.7;">
+            🛰️ 卫星实拍纹理 · 全彩轮廓
+        </div>
+        <div style="margin-top:2px; font-size:0.55rem; opacity:0.5;">
+            ©2026 璧山中学电子科教与融媒体发展中心
+        </div>
+    </div>
+
+    <div id="controls-panel">
+        <div class="control-group">
+            <span>⏵ 自转速度</span>
+            <input type="range" id="rotateSpeed" min="0.0" max="3.0" step="0.1" value="1.0">
+            <span id="speedLabel">1.0x</span>
+        </div>
+        <div class="control-group">
+            <label><input type="checkbox" id="showRays" checked> 显示光线</label>
+            <label><input type="checkbox" id="showTerminator" checked> 显示晨昏圈</label>
+        </div>
+        <div class="control-group">
+            <button class="btn-reset" id="resetViewBtn">⟲ 重置视角</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- 场景 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+
+        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(8, 4, 12);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = false;
+        document.body.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.left = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 4;
+        controls.maxDistance = 30;
+        controls.target.set(0, 0, 0);
+
+        // --- 灯光 (提高亮度让卫星纹理更清晰) ---
+        const ambient = new THREE.AmbientLight(0x4488aa, 0.6);
+        scene.add(ambient);
+        const mainLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+        mainLight.position.set(5, 3, 5);
+        scene.add(mainLight);
+        const fillLight = new THREE.DirectionalLight(0x88bbff, 0.4);
+        fillLight.position.set(-3, 1, -3);
+        scene.add(fillLight);
+
+        // --- 星空 ---
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 2000;
+        const pos = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            const r = 30 + Math.random() * 30;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            pos[i] = Math.sin(phi) * Math.cos(theta) * r;
+            pos[i+1] = Math.sin(phi) * Math.sin(theta) * r;
+            pos[i+2] = Math.cos(phi) * r;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+        const stars = new THREE.Points(starsGeo, starsMat);
+        scene.add(stars);
+
+        // --- 太阳 (固定光源，在右侧) ---
+        const sunGroup = new THREE.Group();
+        scene.add(sunGroup);
+        const sunDist = 6.5;
+        sunGroup.position.set(sunDist, 0, 0);
+
+        const sunGeo = new THREE.SphereGeometry(0.9, 32, 32);
+        const sunMat = new THREE.MeshStandardMaterial({
+            color: 0xffaa44,
+            emissive: 0xff5500,
+            emissiveIntensity: 1.5,
+        });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        sunGroup.add(sunMesh);
+
+        const glowGeo = new THREE.BufferGeometry();
+        const glowCount = 150;
+        const glowPos = new Float32Array(glowCount * 3);
+        for (let i = 0; i < glowCount; i++) {
+            const r = 1.0 + Math.random() * 0.6;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+            glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+            glowPos[i*3+2] = Math.cos(phi) * r;
+        }
+        glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+        const glowMat = new THREE.PointsMaterial({
+            color: 0xffaa33, size: 0.08,
+            transparent: true, blending: THREE.AdditiveBlending
+        });
+        const glow = new THREE.Points(glowGeo, glowMat);
+        sunGroup.add(glow);
+
+        const sunLabelDiv = document.createElement('div');
+        sunLabelDiv.textContent = '☀️ 太阳';
+        sunLabelDiv.style.color = '#ffaa44';
+        sunLabelDiv.style.fontSize = '16px';
+        sunLabelDiv.style.fontWeight = 'bold';
+        sunLabelDiv.style.textShadow = '0 0 20px #ff8800';
+        const sunLabel = new CSS2DObject(sunLabelDiv);
+        sunLabel.position.set(0, 1.6, 0);
+        sunGroup.add(sunLabel);
+
+        // --- 地球 (有地轴倾斜23.5°，自转) ---
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+        earthGroup.rotation.x = 23.5 * Math.PI / 180;
+
+        const textureLoader = new THREE.TextureLoader();
+        
+        // ---- 核心改动：使用高清卫星实拍纹理 ----
+        // 使用 NASA 的 Blue Marble 高清纹理（全彩卫星实拍）
+        const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+        // 备用：如果上面的加载慢，可以用这个更快的高清纹理
+        // 但为了确保显示，我们用标准的 high-res 纹理
+        
+        // 云层纹理（增加真实感）
+        const cloudTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+        
+        const earthGeo = new THREE.SphereGeometry(2.2, 96, 96);
+        const earthMat = new THREE.MeshPhongMaterial({
+            map: mapTex,
+            shininess: 8,
+            specular: new THREE.Color(0x224466),
+            emissive: new THREE.Color(0x001122),
+            emissiveIntensity: 0.05
+        });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        earth.castShadow = false;
+        earth.receiveShadow = false;
+        earthGroup.add(earth);
+
+        // 云层（半透明，增加真实感）
+        const cloudGeo = new THREE.SphereGeometry(2.23, 64, 64);
+        const cloudMat = new THREE.MeshPhongMaterial({
+            map: cloudTex,
+            transparent: true,
+            opacity: 0.15,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+        const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+        earthGroup.add(clouds);
+
+        const labelDiv = document.createElement('div');
+        labelDiv.textContent = '🌍 地球';
+        labelDiv.style.color = '#88ddff';
+        labelDiv.style.fontSize = '16px';
+        labelDiv.style.fontWeight = 'bold';
+        labelDiv.style.textShadow = '0 0 16px #2266cc';
+        const label = new CSS2DObject(labelDiv);
+        label.position.set(0, 2.8, 0);
+        earthGroup.add(label);
+
+        // --- 地轴线 ---
+        const axisGroup = new THREE.Group();
+        const axisLength = 2.6;
+        const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.6, transparent: true });
+        const axisPoints = [
+            new THREE.Vector3(0, -axisLength, 0),
+            new THREE.Vector3(0, axisLength, 0)
+        ];
+        const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+        const axisLine = new THREE.Line(axisGeo, axisMat);
+        axisGroup.add(axisLine);
+        const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+        const capGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        const capTop = new THREE.Mesh(capGeo, capMat);
+        capTop.position.set(0, axisLength, 0);
+        axisGroup.add(capTop);
+        const capBottom = new THREE.Mesh(capGeo, capMat);
+        capBottom.position.set(0, -axisLength, 0);
+        axisGroup.add(capBottom);
+        const nLabelDiv = document.createElement('div');
+        nLabelDiv.textContent = 'N';
+        nLabelDiv.style.color = '#88ddff';
+        nLabelDiv.style.fontSize = '14px';
+        nLabelDiv.style.fontWeight = 'bold';
+        nLabelDiv.style.textShadow = '0 0 12px #2266aa';
+        const nLabel = new CSS2DObject(nLabelDiv);
+        nLabel.position.set(0, axisLength + 0.3, 0);
+        axisGroup.add(nLabel);
+        earthGroup.add(axisGroup);
+
+        // --- 赤道圈 ---
+        const ringPoints = [];
+        const rRing = 2.25;
+        for (let i = 0; i <= 64; i++) {
+            const a = (i / 64) * Math.PI * 2;
+            ringPoints.push(new THREE.Vector3(Math.cos(a) * rRing, 0, Math.sin(a) * rRing));
+        }
+        const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPoints);
+        const ringMat = new THREE.LineBasicMaterial({ color: 0xffaa44, opacity: 0.3, transparent: true });
+        const ringLine = new THREE.Line(ringGeo, ringMat);
+        earthGroup.add(ringLine);
+
+        // --- 光线系统 (从太阳射向地球) ---
+        const rayGroup = new THREE.Group();
+        scene.add(rayGroup);
+
+        const rayCount = 16;
+        for (let i = 0; i < rayCount; i++) {
+            const geo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, 0)
+            ]);
+            const mat = new THREE.LineBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.1 + Math.random() * 0.08
+            });
+            const line = new THREE.Line(geo, mat);
+            rayGroup.add(line);
+        }
+
+        // --- 晨昏圈 (在地球局部空间中正确放置) ---
+        const terminatorGroup = new THREE.Group();
+        earthGroup.add(terminatorGroup);
+
+        const terminatorPoints = [];
+        const termSeg = 80;
+        const termRadius = 2.25;
+        for (let i = 0; i <= termSeg; i++) {
+            const a = (i / termSeg) * Math.PI * 2;
+            terminatorPoints.push(new THREE.Vector3(Math.cos(a) * termRadius, Math.sin(a) * termRadius, 0));
+        }
+        const termGeo = new THREE.BufferGeometry().setFromPoints(terminatorPoints);
+        const termMat = new THREE.LineBasicMaterial({
+            color: 0xff6688,
+            transparent: true,
+            opacity: 0.95,
+        });
+        const termLine = new THREE.Line(termGeo, termMat);
+        terminatorGroup.add(termLine);
+
+        // 半透明圆盘（让晨昏圈更明显）
+        const diskGeo = new THREE.RingGeometry(2.0, 2.35, 64);
+        const diskMat = new THREE.MeshBasicMaterial({
+            color: 0xff6688,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.06
+        });
+        const disk = new THREE.Mesh(diskGeo, diskMat);
+        terminatorGroup.add(disk);
+
+        // --- 晨昏圈垂直于光线方向 ---
+        // 光线方向：从右侧照射，世界空间方向为 (-1, 0, 0)
+        const worldLightDir = new THREE.Vector3(-1, 0, 0);
+        // 转换到 earthGroup 的局部空间
+        const localLightDir = worldLightDir.clone().applyQuaternion(
+            new THREE.Quaternion().copy(earthGroup.quaternion).invert()
+        );
+        const quat = new THREE.Quaternion().setFromUnitVectors(
+            new THREE.Vector3(0, 0, 1),
+            localLightDir.normalize()
+        );
+        terminatorGroup.quaternion.copy(quat);
+
+        // --- 状态变量 ---
+        let rotationAngle = 0;
+        let speedFactor = 1.0;
+        let showRays = true;
+        let showTerminator = true;
+
+        // --- DOM ---
+        const speedSlider = document.getElementById('rotateSpeed');
+        const speedLabel = document.getElementById('speedLabel');
+        const toggleRays = document.getElementById('showRays');
+        const toggleTerm = document.getElementById('showTerminator');
+        const resetBtn = document.getElementById('resetViewBtn');
+
+        speedSlider.addEventListener('input', (e) => {
+            speedFactor = parseFloat(e.target.value);
+            speedLabel.textContent = speedFactor.toFixed(1) + 'x';
+        });
+
+        toggleRays.addEventListener('change', (e) => {
+            showRays = e.target.checked;
+            rayGroup.visible = showRays;
+        });
+
+        toggleTerm.addEventListener('change', (e) => {
+            showTerminator = e.target.checked;
+            terminatorGroup.visible = showTerminator;
+        });
+
+        resetBtn.addEventListener('click', () => {
+            camera.position.set(8, 4, 12);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 更新光线 ---
+        function updateRays() {
+            const sx = sunDist;
+            const sz = 0;
+            
+            rayGroup.children.forEach(child => {
+                if (child.isLine) {
+                    const positions = child.geometry.attributes.position.array;
+                    const offsetX = (Math.random() - 0.5) * 1.6;
+                    const offsetZ = (Math.random() - 0.5) * 1.6;
+                    const startX = sx + offsetX * 0.5;
+                    const startZ = sz + offsetZ * 0.5;
+                    const endX = 0 + offsetX * 0.5;
+                    const endZ = 0 + offsetZ * 0.5;
+                    positions[0] = startX; positions[1] = (Math.random() - 0.5) * 0.8; positions[2] = startZ;
+                    positions[3] = endX; positions[4] = (Math.random() - 0.5) * 0.8; positions[5] = endZ;
+                    child.geometry.attributes.position.needsUpdate = true;
+                }
+            });
+        }
+
+        // --- 动画循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 地球自转
+            rotationAngle += 0.008 * speedFactor;
+            earth.rotation.y = rotationAngle;
+            // 云层以稍快速度飘移
+            clouds.rotation.y = rotationAngle * 1.02;
+
+            updateRays();
+
+            stars.rotation.y += 0.00008;
+
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        // 初始化
+        updateRays();
+        animate();
+
+        console.log('🌓 晨昏线教学已启动 ©2026 璧山中学');
+        console.log('📸 使用卫星实拍纹理 · 全彩轮廓');
+    </script>
+</body>
+</html>

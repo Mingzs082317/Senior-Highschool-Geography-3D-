@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>3D 高中地理 · 地球运动实验室</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+      background-color: #050510;
+      color: white;
+    }
+
+    /* --- 顶部导航 --- */
+    #mode-tabs {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      display: flex;
+      gap: 4px;
+      background: rgba(10, 10, 30, 0.75);
+      backdrop-filter: blur(12px);
+      padding: 6px 10px;
+      border-radius: 48px;
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.6);
+      pointer-events: auto;
+      flex-wrap: wrap;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+    #mode-tabs.show {
+      opacity: 1;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: #aab8ff;
+      padding: 6px 14px;
+      border-radius: 40px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.08); color: #e0e8ff; }
+    .tab-btn.active {
+      background: #ffaa44;
+      color: #0a0a1a;
+      box-shadow: 0 0 20px #ffaa44aa;
+      font-weight: 600;
+    }
+
+    /* --- 加载遮罩 --- */
+    #loader-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      background: rgba(5, 5, 16, 0.8);
+      backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.35s, visibility 0.35s;
+    }
+    #loader-overlay.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .loader-ring {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,170,68,0.15);
+      border-top-color: #ffaa44;
+      animation: spin 1.1s cubic-bezier(0.6,0,0.4,1) infinite;
+    }
+    .loader-text {
+      margin-top: 20px;
+      font-size: 0.95rem;
+      letter-spacing: 1.5px;
+      color: #ccd9ff;
+      background: rgba(0,0,0,0.3);
+      padding: 6px 20px;
+      border-radius: 40px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #container-root {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .module-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .module-container.hidden { display: none; }
+    .module-container canvas { display: block; width: 100% !important; height: 100% !important; }
+    .module-container .css2d-renderer {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      pointer-events: none !important;
+    }
+
+    /* --- 知识点卡片（统一） --- */
+    #knowledge-toggle {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 29;
+      background: rgba(10, 10, 30, 0.65);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #ccd9ff;
+      padding: 6px 20px;
+      border-radius: 40px;
+      font-size: 0.8rem;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      pointer-events: auto;
+      opacity: 0;
+      transition: opacity 0.6s ease, background 0.2s, color 0.2s;
+    }
+    #knowledge-toggle.show {
+      opacity: 1;
+    }
+    #knowledge-toggle:hover {
+      background: rgba(255,170,68,0.15);
+      color: #ffaa44;
+    }
+
+    #knowledge-panel {
+      position: absolute;
+      top: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 28;
+      background: rgba(8, 8, 24, 0.88);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,170,68,0.2);
+      border-radius: 24px;
+      padding: 20px 28px;
+      max-width: 720px;
+      width: 90%;
+      color: #e0e8ff;
+      font-size: 0.85rem;
+      line-height: 1.7;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      pointer-events: auto;
+      transition: opacity 0.3s, transform 0.3s, visibility 0.3s;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-50%) translateY(-10px);
+    }
+    #knowledge-panel.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+    #knowledge-panel h3 {
+      color: #ffaa44;
+      font-weight: 500;
+      letter-spacing: 1px;
+      border-bottom: 1px solid rgba(255,170,68,0.15);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #knowledge-panel .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 20px;
+      margin: 8px 0 12px 0;
+    }
+    #knowledge-panel .grid-item {
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 8px 14px;
+      border-left: 3px solid #ffaa44;
+    }
+    #knowledge-panel .grid-item strong {
+      color: #88ddff;
+    }
+    #knowledge-panel .copyright {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.7rem;
+      color: #8899cc;
+      text-align: center;
+      letter-spacing: 0.8px;
+    }
+    #knowledge-panel .copyright span {
+      color: #ffaa44;
+    }
+
+    /* --- 直射点简图（仅 direct 模块） --- */
+    #direct-svg-wrap {
+      position: absolute;
+      bottom: 110px;
+      left: 16px;
+      width: 180px;
+      height: 120px;
+      z-index: 25;
+      pointer-events: none;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px);
+      border-radius: 16px;
+      border: 1px solid rgba(255,68,0,0.2);
+      padding: 6px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      display: none;
+    }
+    #direct-svg-wrap .label {
+      position: absolute;
+      top: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: #ff8844;
+      opacity: 0.9;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    #direct-svg-wrap svg { width: 100%; height: 100%; display: block; }
+
+    /* --- 启动首页动画 (splash) --- */
+    #splash-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: radial-gradient(ellipse at center, #0a0a2a 0%, #050510 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      transition: opacity 1.2s ease, visibility 1.2s ease;
+      cursor: pointer;
+    }
+    #splash-screen.fade-out {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    #splash-screen .title {
+      font-size: 3.2rem;
+      font-weight: 700;
+      letter-spacing: 4px;
+      background: linear-gradient(135deg, #ffaa44 0%, #ffdd88 50%, #ffaa44 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 60px rgba(255,170,68,0.2);
+      animation: titlePulse 3s ease-in-out infinite;
+    }
+    #splash-screen .sub {
+      font-size: 1.1rem;
+      color: #88aaff;
+      letter-spacing: 6px;
+      margin-top: 12px;
+      opacity: 0.7;
+      font-weight: 300;
+    }
+    #splash-screen .loader-ring {
+      margin-top: 40px;
+      width: 60px;
+      height: 60px;
+      border-width: 3px;
+    }
+    @keyframes titlePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+    #splash-screen .enter-hint {
+      position: absolute;
+      bottom: 60px;
+      color: rgba(255,255,255,0.2);
+      font-size: 0.8rem;
+      letter-spacing: 3px;
+      animation: blink 1.8s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.8; }
+    }
+    #splash-screen .splash-footer {
+      position: absolute;
+      bottom: 20px;
+      color: rgba(255,255,255,0.15);
+      font-size: 0.65rem;
+      letter-spacing: 1.5px;
+      text-align: center;
+      line-height: 1.6;
+    }
+    #splash-screen .splash-footer span {
+      color: #ffaa44;
+      opacity: 0.6;
+    }
+
+    @media (max-width: 700px) {
+      #mode-tabs { top: 8px; padding: 4px 6px; gap: 3px; }
+      .tab-btn { padding: 4px 10px; font-size: 0.65rem; }
+      #knowledge-toggle { top: 70px; font-size: 0.7rem; padding: 4px 14px; }
+      #knowledge-panel { top: 105px; padding: 16px 18px; max-width: 94%; font-size: 0.75rem; }
+      #knowledge-panel .grid { grid-template-columns: 1fr; gap: 8px; }
+      #direct-svg-wrap { bottom: 100px; left: 8px; width: 130px; height: 90px; }
+      #direct-svg-wrap .label { font-size: 8px; }
+      #splash-screen .title { font-size: 2rem; letter-spacing: 2px; }
+      #splash-screen .sub { font-size: 0.8rem; letter-spacing: 3px; }
+      #splash-screen .splash-footer { font-size: 0.5rem; bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+<div id="container-root">
+
+  <!-- ===== 启动首页动画 ===== -->
+  <div id="splash-screen">
+    <div class="title">🌍 地球运动实验室</div>
+    <div class="sub">3D 高中地理 · 全场景模拟</div>
+    <div class="loader-ring"></div>
+    <div class="enter-hint">✦ 点击任意位置进入 ✦</div>
+    <div class="splash-footer">
+      <span>©2026 璧山中学电子科教与融媒体发展促进中心</span><br>
+      开发者：丁家茗
+    </div>
+  </div>
+
+  <!-- 顶部导航 -->
+  <div id="mode-tabs">
+    <button class="tab-btn active" data-mode="orbit">🌍 自转·公转</button>
+    <button class="tab-btn" data-mode="terminator">🌓 晨昏线</button>
+    <button class="tab-btn" data-mode="direct">☀️ 直射点</button>
+    <button class="tab-btn" data-mode="season">🌿 四季五带</button>
+    <button class="tab-btn" data-mode="angle">📐 太阳高度角</button>
+  </div>
+
+  <!-- 知识点卡片 开关 -->
+  <button id="knowledge-toggle">📘 知识点卡片</button>
+
+  <!-- 知识点卡片 + 版权 -->
+  <div id="knowledge-panel">
+    <h3>📖 地球运动 · 核心知识点</h3>
+    <div class="grid">
+      <div class="grid-item"><strong>自转</strong> · 周期约24小时（恒星日23时56分）<br>→ 昼夜交替、时区、地转偏向力</div>
+      <div class="grid-item"><strong>公转</strong> · 周期约365.25天（回归年）<br>→ 四季变化、五带划分、正午太阳高度</div>
+      <div class="grid-item"><strong>黄赤交角</strong> 23.5°<br>→ 太阳直射点移动 (23.5°N ~ 23.5°S)</div>
+      <div class="grid-item"><strong>晨昏线</strong> · 昼半球与夜半球分界<br>→ 晨线/昏线 · 垂直于太阳光线</div>
+    </div>
+    <div class="copyright">
+      <span>©2026 璧山中学电子科教与融媒体发展促进中心 · 电子科教与信息技术部</span><br>
+      开发者：丁家茗
+    </div>
+  </div>
+
+  <!-- 加载遮罩 -->
+  <div id="loader-overlay">
+    <div class="loader-ring"></div>
+    <div class="loader-text">切换场景中…</div>
+  </div>
+
+  <!-- 五个场景容器 -->
+  <div id="module-orbit" class="module-container"></div>
+  <div id="module-terminator" class="module-container hidden"></div>
+  <div id="module-direct" class="module-container hidden"></div>
+  <div id="module-season" class="module-container hidden"></div>
+  <div id="module-angle" class="module-container hidden"></div>
+
+  <!-- 直射点简图（仅 direct 模块使用） -->
+  <div id="direct-svg-wrap">
+    <div class="label">☀️ 直射点纬度</div>
+    <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="80" cy="55" r="32" fill="none" stroke="#3a8cff" stroke-width="1.5" opacity="0.6"/>
+      <line x1="48" y1="55" x2="112" y2="55" stroke="#ffaa44" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+      <line x1="80" y1="15" x2="80" y2="95" stroke="#88ddff" stroke-width="1.2" opacity="0.5"/>
+      <line x1="55" y1="41" x2="105" y2="41" stroke="#ff8844" stroke-width="0.8" opacity="0.3" stroke-dasharray="2,2"/>
+      <line x1="55" y1="69" x2="105" y2="69" stroke="#ff8844" stroke-width="0.8" opacity="0.3" stroke-dasharray="2,2"/>
+      <circle id="direct-dot" cx="80" cy="55" r="4" fill="#ff4400" opacity="0.9"/>
+      <circle id="direct-glow" cx="80" cy="55" r="8" fill="#ff4400" opacity="0.2"/>
+      <line id="direct-line" x1="80" y1="8" x2="80" y2="23" stroke="#ffff44" stroke-width="1.2" opacity="0.6"/>
+      <text x="80" y="100" text-anchor="middle" font-size="7" fill="#88ddff" opacity="0.5">赤道</text>
+      <text x="108" y="43" text-anchor="start" font-size="5" fill="#ff8844" opacity="0.4">23.5°N</text>
+      <text x="108" y="71" text-anchor="start" font-size="5" fill="#ff8844" opacity="0.4">23.5°S</text>
+    </svg>
+  </div>
+</div>
+
+<script type="module">
+  // ----- 导入 Three.js -----
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+  // ----- DOM 引用 -----
+  const containers = {
+    orbit: document.getElementById('module-orbit'),
+    terminator: document.getElementById('module-terminator'),
+    direct: document.getElementById('module-direct'),
+    season: document.getElementById('module-season'),
+    angle: document.getElementById('module-angle')
+  };
+  const loader = document.getElementById('loader-overlay');
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const directSvgWrap = document.getElementById('direct-svg-wrap');
+  const knowledgeToggle = document.getElementById('knowledge-toggle');
+  const knowledgePanel = document.getElementById('knowledge-panel');
+  const splashScreen = document.getElementById('splash-screen');
+  const modeTabs = document.getElementById('mode-tabs');
+
+  // ----- 知识点卡片切换 -----
+  knowledgeToggle.addEventListener('click', () => {
+    knowledgePanel.classList.toggle('open');
+  });
+
+  // ----- 启动首页：点击任意位置进入 -----
+  let splashDone = false;
+  function enterApp() {
+    if (splashDone) return;
+    splashDone = true;
+    splashScreen.classList.add('fade-out');
+    // 显示导航和知识点按钮
+    modeTabs.classList.add('show');
+    knowledgeToggle.classList.add('show');
+    // 启动第一个场景（如果尚未启动）
+    if (!activeScene) {
+      containers.orbit.classList.remove('hidden');
+      activeScene = buildOrbit(containers.orbit);
+      currentMode = 'orbit';
+      document.querySelector('.tab-btn[data-mode="orbit"]').classList.add('active');
+    }
+  }
+  // 点击 splash 进入
+  splashScreen.addEventListener('click', enterApp);
+  splashScreen.addEventListener('touchstart', enterApp);
+
+  // 同时，如果用户点击了任何 tab 但 splash 还未消失，则自动进入
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!splashDone) enterApp();
+    });
+  });
+
+  // 额外安全：如果用户通过其他方式触发了场景构建（极少情况）
+  // 但 splash 未消失，则自动进入。
+  // 但此场景下，splash 是覆盖全屏的，所以其他点击都会被 splash 捕获。
+
+  // ----- 全局状态 -----
+  let currentMode = 'orbit';
+  let activeScene = null;
+  let isTransitioning = false;
+
+  // ----- 工具：星空 -----
+  function createStars(scene) {
+    const geo = new THREE.BufferGeometry();
+    const count = 2800;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count * 3; i += 3) {
+      const r = 30 + Math.random() * 40;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      pos[i] = Math.sin(phi) * Math.cos(theta) * r;
+      pos[i+1] = Math.sin(phi) * Math.sin(theta) * r;
+      pos[i+2] = Math.cos(phi) * r;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.16,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending
+    });
+    const stars = new THREE.Points(geo, mat);
+    scene.add(stars);
+    return stars;
+  }
+
+  // ========== 模块1: 自转与公转 ==========
+  function buildOrbit(container) {
+    container.innerHTML = '';
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050510);
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth/container.clientHeight, 0.1, 1000);
+    camera.position.set(8, 5, 12);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.left = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 4;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0x404060);
+    scene.add(ambient);
+    const sunLight = new THREE.PointLight(0xffeedd, 2.5);
+    sunLight.position.set(0, 0, 0);
+    scene.add(sunLight);
+    const fillLight = new THREE.DirectionalLight(0x446688, 0.8);
+    fillLight.position.set(1, 1, 1);
+    scene.add(fillLight);
+    const backLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+    backLight.position.set(-1, 0.5, -1);
+    scene.add(backLight);
+    const stars = createStars(scene);
+
+    const sunGeo = new THREE.SphereGeometry(1.2, 48, 48);
+    const sunMat = new THREE.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xff5500, emissiveIntensity: 0.8 });
+    const sun = new THREE.Mesh(sunGeo, sunMat);
+    scene.add(sun);
+    const glowParticles = new THREE.BufferGeometry();
+    const glowCount = 400;
+    const glowPos = new Float32Array(glowCount * 3);
+    for (let i=0; i<glowCount; i++) {
+      const r = 1.5 + Math.random() * 0.8;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+      glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+      glowPos[i*3+2] = Math.cos(phi) * r;
+    }
+    glowParticles.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+    const glowMat = new THREE.PointsMaterial({
+      color: 0xffaa33,
+      size: 0.06,
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+    const glow = new THREE.Points(glowParticles, glowMat);
+    scene.add(glow);
+
+    const sunLabelDiv = document.createElement('div');
+    sunLabelDiv.textContent = '☀️ 太阳';
+    sunLabelDiv.style.cssText = 'color:#ffaa44;font-size:16px;font-weight:bold;text-shadow:0 0 20px #ff8800;';
+    const sunLabel = new CSS2DObject(sunLabelDiv);
+    sunLabel.position.set(0, 1.8, 0);
+    scene.add(sunLabel);
+
+    const radiusX = 4.8, radiusZ = 4.8;
+    const orbitPoints = [];
+    for (let i = 0; i <= 128; i++) {
+      const a = (i / 128) * Math.PI * 2;
+      orbitPoints.push(new THREE.Vector3(Math.cos(a) * radiusX, 0, Math.sin(a) * radiusZ));
+    }
+    const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+    const orbitMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.3, transparent: true });
+    const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+    scene.add(orbitLine);
+    const ringGeo = new THREE.RingGeometry(4.7, 4.9, 64);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x88ddff, side: THREE.DoubleSide, transparent: true, opacity: 0.08 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    scene.add(ring);
+
+    const textureLoader = new THREE.TextureLoader();
+    const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const specTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg');
+    const normalTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg');
+    const cloudTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+
+    const earthOrbitGroup = new THREE.Group();
+    scene.add(earthOrbitGroup);
+    const earthGroup = new THREE.Group();
+    earthOrbitGroup.add(earthGroup);
+    earthGroup.rotation.x = 23.5 * Math.PI / 180;
+    earthGroup.rotation.z = -0.1;
+
+    const earthGeo = new THREE.SphereGeometry(1.2, 64, 64);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: mapTex,
+      specularMap: specTex,
+      specular: 0x333333,
+      shininess: 5,
+      normalMap: normalTex,
+      normalScale: new THREE.Vector2(0.8, 0.8)
+    });
+    const earth = new THREE.Mesh(earthGeo, earthMat);
+    earth.castShadow = true;
+    earth.receiveShadow = true;
+    earthGroup.add(earth);
+
+    const cloudGeo = new THREE.SphereGeometry(1.22, 64, 64);
+    const cloudMat = new THREE.MeshPhongMaterial({
+      map: cloudTex,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+    earthGroup.add(clouds);
+
+    // 地轴
+    const axisGroup = new THREE.Group();
+    const axisLength = 1.9;
+    const axisPoints = [new THREE.Vector3(0, -axisLength, 0), new THREE.Vector3(0, axisLength, 0)];
+    const axisGeo2 = new THREE.BufferGeometry().setFromPoints(axisPoints);
+    const axisMat2 = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.7, transparent: true });
+    const axisLine2 = new THREE.Line(axisGeo2, axisMat2);
+    axisGroup.add(axisLine2);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+    const capGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const capTop = new THREE.Mesh(capGeo, capMat);
+    capTop.position.set(0, axisLength, 0);
+    axisGroup.add(capTop);
+    const capBottom = new THREE.Mesh(capGeo, capMat);
+    capBottom.position.set(0, -axisLength, 0);
+    axisGroup.add(capBottom);
+    const polarLabelDiv = document.createElement('div');
+    polarLabelDiv.textContent = 'N';
+    polarLabelDiv.style.cssText = 'color:#88ddff;font-size:12px;font-weight:bold;text-shadow:0 0 8px #2266aa;';
+    const polarLabel = new CSS2DObject(polarLabelDiv);
+    polarLabel.position.set(0, axisLength + 0.3, 0);
+    axisGroup.add(polarLabel);
+    earthGroup.add(axisGroup);
+
+    const earthLabelDiv = document.createElement('div');
+    earthLabelDiv.textContent = '🌍 地球';
+    earthLabelDiv.style.cssText = 'color:#88ddff;font-size:14px;font-weight:bold;text-shadow:0 0 12px #2266cc;';
+    const earthLabel = new CSS2DObject(earthLabelDiv);
+    earthLabel.position.set(0, 1.9, 0);
+    earthGroup.add(earthLabel);
+
+    const gridHelper = new THREE.GridHelper(12, 12, 0x88aaff, 0x445577);
+    gridHelper.position.y = -0.1;
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.15;
+    scene.add(gridHelper);
+
+    for (let i = 0; i < 30; i++) {
+      const size = 0.03 + Math.random() * 0.04;
+      const dotMat = new THREE.MeshBasicMaterial({ color: 0x88aaff });
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(size, 4, 4), dotMat);
+      const angle = Math.random() * Math.PI * 2;
+      const r = 4.8 + (Math.random() - 0.5) * 0.3;
+      dot.position.set(Math.cos(angle) * r, (Math.random() - 0.5) * 0.2, Math.sin(angle) * r);
+      scene.add(dot);
+    }
+
+    let orbitAngle = 0;
+    let speedFactor = 0.6;
+    let autoRotateEarth = true;
+    let autoOrbit = true;
+
+    const controlsDiv = document.createElement('div');
+    controlsDiv.style.cssText = 'position:absolute;bottom:30px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 24px;background:rgba(10,10,25,0.7);backdrop-filter:blur(8px);padding:14px 24px;border-radius:60px;max-width:720px;margin:0 auto;border:1px solid rgba(255,255,255,0.08);z-index:20;pointer-events:auto;';
+    container.appendChild(controlsDiv);
+    controlsDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <span>⏵ 公转速度</span>
+        <input type="range" id="orbitSpeed" min="0" max="2" step="0.05" value="0.6" style="width:90px;">
+        <span id="speedLabel">0.6x</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <label><input type="checkbox" id="toggleRotation" checked> 自转</label>
+        <label><input type="checkbox" id="toggleOrbit" checked> 公转</label>
+      </div>
+      <div><button id="resetViewBtn" style="background:#2a3a7a;border:none;color:white;padding:4px 16px;border-radius:30px;font-size:0.75rem;cursor:pointer;border:1px solid #4a6aaa;">⟲ 重置</button></div>
+    `;
+    const speedSlider = controlsDiv.querySelector('#orbitSpeed');
+    const speedLabel2 = controlsDiv.querySelector('#speedLabel');
+    const toggleRotation = controlsDiv.querySelector('#toggleRotation');
+    const toggleOrbit = controlsDiv.querySelector('#toggleOrbit');
+    const resetBtn = controlsDiv.querySelector('#resetViewBtn');
+
+    speedSlider.addEventListener('input', (e) => {
+      speedFactor = parseFloat(e.target.value);
+      speedLabel2.textContent = speedFactor.toFixed(1) + 'x';
+    });
+    toggleRotation.addEventListener('change', (e) => { autoRotateEarth = e.target.checked; });
+    toggleOrbit.addEventListener('change', (e) => { autoOrbit = e.target.checked; });
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(8, 5, 12);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    let animId = null;
+    function animate() {
+      animId = requestAnimationFrame(animate);
+      if (autoOrbit) orbitAngle += 0.004 * speedFactor;
+      const x = Math.cos(orbitAngle) * radiusX;
+      const z = Math.sin(orbitAngle) * radiusZ;
+      earthOrbitGroup.position.set(x, 0, z);
+      earthGroup.rotation.y = -orbitAngle;
+      if (autoRotateEarth) {
+        earth.rotation.y += 0.01 * speedFactor * 1.2;
+        clouds.rotation.y += 0.012 * speedFactor * 1.2;
+      }
+      stars.rotation.y += 0.00006;
+      glow.rotation.y += 0.001;
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeHandler = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      labelRenderer.setSize(w, h);
+    };
+    window.addEventListener('resize', resizeHandler);
+
+    return {
+      scene, camera, renderer, labelRenderer, controls,
+      animationId: animId,
+      dispose: () => {
+        if (animId) cancelAnimationFrame(animId);
+        window.removeEventListener('resize', resizeHandler);
+        renderer.dispose();
+        labelRenderer.domElement.remove();
+        controlsDiv.remove();
+        container.innerHTML = '';
+      }
+    };
+  }
+
+  // ========== 模块2: 晨昏线 ==========
+  function buildTerminator(container) {
+    container.innerHTML = '';
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a1a);
+    const camera = new THREE.PerspectiveCamera(35, container.clientWidth/container.clientHeight, 0.1, 100);
+    camera.position.set(8, 4, 12);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.left = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 4;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0x4488aa, 0.6);
+    scene.add(ambient);
+    const mainLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+    mainLight.position.set(5, 3, 5);
+    scene.add(mainLight);
+    const fillLight = new THREE.DirectionalLight(0x88bbff, 0.4);
+    fillLight.position.set(-3, 1, -3);
+    scene.add(fillLight);
+    const stars = createStars(scene);
+
+    const sunGroup = new THREE.Group();
+    scene.add(sunGroup);
+    const sunDist = 6.5;
+    sunGroup.position.set(sunDist, 0, 0);
+    const sunGeo = new THREE.SphereGeometry(0.9, 32, 32);
+    const sunMat = new THREE.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xff5500, emissiveIntensity: 1.5 });
+    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    sunGroup.add(sunMesh);
+    const glowGeo = new THREE.BufferGeometry();
+    const glowCount = 150;
+    const glowPos = new Float32Array(glowCount * 3);
+    for (let i=0; i<glowCount; i++) {
+      const r = 1.0 + Math.random() * 0.6;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+      glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+      glowPos[i*3+2] = Math.cos(phi) * r;
+    }
+    glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+    const glowMat = new THREE.PointsMaterial({
+      color: 0xffaa33,
+      size: 0.08,
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+    const glow = new THREE.Points(glowGeo, glowMat);
+    sunGroup.add(glow);
+    const sunLabelDiv = document.createElement('div');
+    sunLabelDiv.textContent = '☀️ 太阳';
+    sunLabelDiv.style.cssText = 'color:#ffaa44;font-size:16px;font-weight:bold;text-shadow:0 0 20px #ff8800;';
+    const sunLabel = new CSS2DObject(sunLabelDiv);
+    sunLabel.position.set(0, 1.6, 0);
+    sunGroup.add(sunLabel);
+
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+    earthGroup.rotation.x = 23.5 * Math.PI / 180;
+    const textureLoader = new THREE.TextureLoader();
+    const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const cloudTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+    const earthGeo = new THREE.SphereGeometry(2.2, 96, 96);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: mapTex,
+      shininess: 8,
+      specular: new THREE.Color(0x224466),
+      emissive: new THREE.Color(0x001122),
+      emissiveIntensity: 0.05
+    });
+    const earth = new THREE.Mesh(earthGeo, earthMat);
+    earthGroup.add(earth);
+    const cloudGeo = new THREE.SphereGeometry(2.23, 64, 64);
+    const cloudMat = new THREE.MeshPhongMaterial({
+      map: cloudTex,
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+    earthGroup.add(clouds);
+    const labelDiv = document.createElement('div');
+    labelDiv.textContent = '🌍 地球';
+    labelDiv.style.cssText = 'color:#88ddff;font-size:16px;font-weight:bold;text-shadow:0 0 16px #2266cc;';
+    const label = new CSS2DObject(labelDiv);
+    label.position.set(0, 2.8, 0);
+    earthGroup.add(label);
+
+    const axisGroup = new THREE.Group();
+    const axisLength = 2.6;
+    const axisPoints = [new THREE.Vector3(0, -axisLength, 0), new THREE.Vector3(0, axisLength, 0)];
+    const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.6, transparent: true });
+    const axisLine = new THREE.Line(axisGeo, axisMat);
+    axisGroup.add(axisLine);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+    const capGeo = new THREE.SphereGeometry(0.08, 8, 8);
+    const capTop = new THREE.Mesh(capGeo, capMat);
+    capTop.position.set(0, axisLength, 0);
+    axisGroup.add(capTop);
+    const capBottom = new THREE.Mesh(capGeo, capMat);
+    capBottom.position.set(0, -axisLength, 0);
+    axisGroup.add(capBottom);
+    const nLabelDiv = document.createElement('div');
+    nLabelDiv.textContent = 'N';
+    nLabelDiv.style.cssText = 'color:#88ddff;font-size:14px;font-weight:bold;text-shadow:0 0 12px #2266aa;';
+    const nLabel = new CSS2DObject(nLabelDiv);
+    nLabel.position.set(0, axisLength + 0.3, 0);
+    axisGroup.add(nLabel);
+    earthGroup.add(axisGroup);
+
+    const ringPoints = [];
+    for (let i=0; i<=64; i++) {
+      const a = (i/64) * Math.PI * 2;
+      ringPoints.push(new THREE.Vector3(Math.cos(a) * 2.25, 0, Math.sin(a) * 2.25));
+    }
+    const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPoints);
+    const ringMat = new THREE.LineBasicMaterial({ color: 0xffaa44, opacity: 0.3, transparent: true });
+    const ringLine = new THREE.Line(ringGeo, ringMat);
+    earthGroup.add(ringLine);
+
+    const rayGroup = new THREE.Group();
+    scene.add(rayGroup);
+    for (let i=0; i<16; i++) {
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.1 + Math.random()*0.08 });
+      const line = new THREE.Line(geo, mat);
+      rayGroup.add(line);
+    }
+
+    const terminatorGroup = new THREE.Group();
+    earthGroup.add(terminatorGroup);
+    const termPoints = [];
+    for (let i=0; i<=80; i++) {
+      const a = (i/80) * Math.PI * 2;
+      termPoints.push(new THREE.Vector3(Math.cos(a) * 2.25, Math.sin(a) * 2.25, 0));
+    }
+    const termGeo = new THREE.BufferGeometry().setFromPoints(termPoints);
+    const termMat = new THREE.LineBasicMaterial({ color: 0xff6688, transparent: true, opacity: 0.95 });
+    const termLine = new THREE.Line(termGeo, termMat);
+    terminatorGroup.add(termLine);
+    const diskGeo = new THREE.RingGeometry(2.0, 2.35, 64);
+    const diskMat = new THREE.MeshBasicMaterial({ color: 0xff6688, side: THREE.DoubleSide, transparent: true, opacity: 0.06 });
+    const disk = new THREE.Mesh(diskGeo, diskMat);
+    terminatorGroup.add(disk);
+
+    const worldLightDir = new THREE.Vector3(-1, 0, 0);
+    const localLightDir = worldLightDir.clone().applyQuaternion(
+      new THREE.Quaternion().copy(earthGroup.quaternion).invert()
+    );
+    const quat = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      localLightDir.normalize()
+    );
+    terminatorGroup.quaternion.copy(quat);
+
+    let rotationAngle = 0;
+    let speedFactor = 1.0;
+    let showRays = true;
+    let showTerminator = true;
+
+    const controlsDiv = document.createElement('div');
+    controlsDiv.style.cssText = 'position:absolute;bottom:30px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 24px;background:rgba(10,10,25,0.7);backdrop-filter:blur(8px);padding:14px 24px;border-radius:60px;max-width:620px;margin:0 auto;border:1px solid rgba(255,255,255,0.08);z-index:20;pointer-events:auto;';
+    container.appendChild(controlsDiv);
+    controlsDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <span>⏵ 自转速度</span>
+        <input type="range" id="rotateSpeed" min="0" max="3" step="0.1" value="1.0" style="width:90px;">
+        <span id="speedLabel">1.0x</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <label><input type="checkbox" id="showRays" checked> 光线</label>
+        <label><input type="checkbox" id="showTerminator" checked> 晨昏圈</label>
+      </div>
+      <div><button id="resetViewBtn" style="background:#2a3a7a;border:none;color:white;padding:4px 16px;border-radius:30px;font-size:0.75rem;cursor:pointer;border:1px solid #4a6aaa;">⟲ 重置</button></div>
+    `;
+    const speedSlider = controlsDiv.querySelector('#rotateSpeed');
+    const speedLabel2 = controlsDiv.querySelector('#speedLabel');
+    const toggleRays = controlsDiv.querySelector('#showRays');
+    const toggleTerm = controlsDiv.querySelector('#showTerminator');
+    const resetBtn = controlsDiv.querySelector('#resetViewBtn');
+
+    speedSlider.addEventListener('input', (e) => {
+      speedFactor = parseFloat(e.target.value);
+      speedLabel2.textContent = speedFactor.toFixed(1) + 'x';
+    });
+    toggleRays.addEventListener('change', (e) => {
+      showRays = e.target.checked;
+      rayGroup.visible = showRays;
+    });
+    toggleTerm.addEventListener('change', (e) => {
+      showTerminator = e.target.checked;
+      terminatorGroup.visible = showTerminator;
+    });
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(8, 4, 12);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    function updateRays() {
+      const sx = sunDist, sz = 0;
+      rayGroup.children.forEach(child => {
+        if (child.isLine) {
+          const pos = child.geometry.attributes.position.array;
+          const ox = (Math.random()-0.5)*1.6, oz = (Math.random()-0.5)*1.6;
+          pos[0] = sx + ox*0.5;
+          pos[1] = (Math.random()-0.5)*0.8;
+          pos[2] = sz + oz*0.5;
+          pos[3] = ox*0.5;
+          pos[4] = (Math.random()-0.5)*0.8;
+          pos[5] = oz*0.5;
+          child.geometry.attributes.position.needsUpdate = true;
+        }
+      });
+    }
+
+    let animId = null;
+    function animate() {
+      animId = requestAnimationFrame(animate);
+      rotationAngle += 0.008 * speedFactor;
+      earth.rotation.y = rotationAngle;
+      clouds.rotation.y = rotationAngle * 1.02;
+      updateRays();
+      stars.rotation.y += 0.00008;
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeHandler = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      labelRenderer.setSize(w, h);
+    };
+    window.addEventListener('resize', resizeHandler);
+
+    return {
+      scene, camera, renderer, labelRenderer, controls,
+      animationId: animId,
+      dispose: () => {
+        if (animId) cancelAnimationFrame(animId);
+        window.removeEventListener('resize', resizeHandler);
+        renderer.dispose();
+        labelRenderer.domElement.remove();
+        controlsDiv.remove();
+        container.innerHTML = '';
+      }
+    };
+  }
+
+  // ========== 模块3: 直射点 ==========
+  function buildDirect(container) {
+    container.innerHTML = '';
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a1a);
+    const camera = new THREE.PerspectiveCamera(35, container.clientWidth/container.clientHeight, 0.1, 100);
+    camera.position.set(10, 6, 14);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.left = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 5;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0x446688, 0.6);
+    scene.add(ambient);
+    const fillLight = new THREE.DirectionalLight(0x88bbff, 0.5);
+    fillLight.position.set(1, 1, 1);
+    scene.add(fillLight);
+    const stars = createStars(scene);
+
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+    earthGroup.rotation.x = 23.5 * Math.PI / 180;
+    const textureLoader = new THREE.TextureLoader();
+    const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const earthGeo = new THREE.SphereGeometry(2.2, 64, 64);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: mapTex,
+      shininess: 5,
+      specular: new THREE.Color(0x224466),
+      emissive: new THREE.Color(0x112233),
+      emissiveIntensity: 0.05
+    });
+    const earth = new THREE.Mesh(earthGeo, earthMat);
+    earthGroup.add(earth);
+    const labelDiv = document.createElement('div');
+    labelDiv.textContent = '🌍 地球';
+    labelDiv.style.cssText = 'color:#88ddff;font-size:16px;font-weight:bold;text-shadow:0 0 16px #2266cc;';
+    const label = new CSS2DObject(labelDiv);
+    label.position.set(0, 2.8, 0);
+    earthGroup.add(label);
+
+    const axisGroup = new THREE.Group();
+    const axisLength = 2.6;
+    const axisPoints = [new THREE.Vector3(0, -axisLength, 0), new THREE.Vector3(0, axisLength, 0)];
+    const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.6, transparent: true });
+    const axisLine = new THREE.Line(axisGeo, axisMat);
+    axisGroup.add(axisLine);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+    const capGeo = new THREE.SphereGeometry(0.08, 8, 8);
+    const capTop = new THREE.Mesh(capGeo, capMat);
+    capTop.position.set(0, axisLength, 0);
+    axisGroup.add(capTop);
+    const capBottom = new THREE.Mesh(capGeo, capMat);
+    capBottom.position.set(0, -axisLength, 0);
+    axisGroup.add(capBottom);
+    const nLabelDiv = document.createElement('div');
+    nLabelDiv.textContent = 'N';
+    nLabelDiv.style.cssText = 'color:#88ddff;font-size:14px;font-weight:bold;text-shadow:0 0 12px #2266aa;';
+    const nLabel = new CSS2DObject(nLabelDiv);
+    nLabel.position.set(0, axisLength + 0.3, 0);
+    axisGroup.add(nLabel);
+    earthGroup.add(axisGroup);
+
+    const ringPoints = [];
+    for (let i=0; i<=64; i++) {
+      const a = (i/64) * Math.PI * 2;
+      ringPoints.push(new THREE.Vector3(Math.cos(a) * 2.25, 0, Math.sin(a) * 2.25));
+    }
+    const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPoints);
+    const ringMat = new THREE.LineBasicMaterial({ color: 0xffaa44, opacity: 0.3, transparent: true });
+    const ringLine = new THREE.Line(ringGeo, ringMat);
+    earthGroup.add(ringLine);
+
+    const tropicLat = 23.5 * Math.PI / 180;
+    const makeLatCircle = (lat, color) => {
+      const pts = [];
+      const r = 2.25 * Math.cos(lat);
+      const y = 2.25 * Math.sin(lat);
+      for (let i=0; i<=64; i++) {
+        const a = (i/64) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+      }
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      const m = new THREE.LineBasicMaterial({ color, opacity: 0.3, transparent: true });
+      return new THREE.Line(g, m);
+    };
+    earthGroup.add(makeLatCircle(tropicLat, 0xff8844));
+    earthGroup.add(makeLatCircle(-tropicLat, 0xff8844));
+
+    const sunGroup = new THREE.Group();
+    scene.add(sunGroup);
+    const sunDist = 6.5;
+    const sunGeo2 = new THREE.SphereGeometry(0.9, 32, 32);
+    const sunMat2 = new THREE.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xff5500, emissiveIntensity: 1.5 });
+    const sunMesh = new THREE.Mesh(sunGeo2, sunMat2);
+    sunGroup.add(sunMesh);
+    const glowGeo2 = new THREE.BufferGeometry();
+    const glowCount2 = 150;
+    const glowPos2 = new Float32Array(glowCount2 * 3);
+    for (let i=0; i<glowCount2; i++) {
+      const r = 1.0 + Math.random() * 0.6;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      glowPos2[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+      glowPos2[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+      glowPos2[i*3+2] = Math.cos(phi) * r;
+    }
+    glowGeo2.setAttribute('position', new THREE.BufferAttribute(glowPos2, 3));
+    const glowMat2 = new THREE.PointsMaterial({
+      color: 0xffaa33,
+      size: 0.08,
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+    const glow2 = new THREE.Points(glowGeo2, glowMat2);
+    sunGroup.add(glow2);
+    const sunLabelDiv = document.createElement('div');
+    sunLabelDiv.textContent = '☀️ 太阳';
+    sunLabelDiv.style.cssText = 'color:#ffaa44;font-size:16px;font-weight:bold;text-shadow:0 0 20px #ff8800;';
+    const sunLabel = new CSS2DObject(sunLabelDiv);
+    sunLabel.position.set(0, 1.6, 0);
+    sunGroup.add(sunLabel);
+
+    const orbitPoints2 = [];
+    for (let i=0; i<=128; i++) {
+      const a = (i/128) * Math.PI * 2;
+      orbitPoints2.push(new THREE.Vector3(Math.cos(a) * sunDist, 0, Math.sin(a) * sunDist));
+    }
+    const orbitGeo2 = new THREE.BufferGeometry().setFromPoints(orbitPoints2);
+    const orbitMat2 = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.2, transparent: true });
+    const orbitLine2 = new THREE.Line(orbitGeo2, orbitMat2);
+    scene.add(orbitLine2);
+
+    const marks = [
+      {angle:0, label:'春分'},
+      {angle:Math.PI/2, label:'夏至'},
+      {angle:Math.PI, label:'秋分'},
+      {angle:3*Math.PI/2, label:'冬至'}
+    ];
+    marks.forEach(({angle,label}) => {
+      const x = Math.cos(angle) * sunDist;
+      const z = Math.sin(angle) * sunDist;
+      const div = document.createElement('div');
+      div.textContent = label;
+      div.style.cssText = 'color:#88ddff;font-size:12px;opacity:0.5;text-shadow:0 0 8px #000;';
+      const obj = new CSS2DObject(div);
+      obj.position.set(x, -0.8, z);
+      scene.add(obj);
+    });
+
+    const rayGroup = new THREE.Group();
+    scene.add(rayGroup);
+    for (let i=0; i<16; i++) {
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.1 + Math.random()*0.08 });
+      const line = new THREE.Line(geo, mat);
+      rayGroup.add(line);
+    }
+    const directRayMat = new THREE.LineBasicMaterial({ color: 0xff4400, opacity: 0.9, transparent: true });
+    const directRayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+    const directRay = new THREE.Line(directRayGeo, directRayMat);
+    rayGroup.add(directRay);
+
+    const spotMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+    const spotGeo = new THREE.SphereGeometry(0.18, 8, 8);
+    const spot = new THREE.Mesh(spotGeo, spotMat);
+    earthGroup.add(spot);
+    const glowSpotMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.15 });
+    const glowSpotGeo = new THREE.SphereGeometry(0.35, 8, 8);
+    const glowSpot = new THREE.Mesh(glowSpotGeo, glowSpotMat);
+    earthGroup.add(glowSpot);
+
+    const svgDot = document.getElementById('direct-dot');
+    const svgGlow = document.getElementById('direct-glow');
+    const svgLine = document.getElementById('direct-line');
+    function updateDirectSVG(latDeg) {
+      if (!svgDot || !svgGlow || !svgLine) return;
+      const cx = 80, cy = 55, radius = 32;
+      const yPos = cy - (latDeg / 23.5) * radius;
+      const clampedY = Math.max(cy - radius, Math.min(cy + radius, yPos));
+      svgDot.setAttribute('cy', clampedY);
+      svgGlow.setAttribute('cy', clampedY);
+      svgLine.setAttribute('y2', clampedY - 4);
+    }
+
+    let orbitAngle = 0;
+    let speedFactor = 0.5;
+    let showRays = true;
+
+    const controlsDiv = document.createElement('div');
+    controlsDiv.style.cssText = 'position:absolute;bottom:30px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 24px;background:rgba(10,10,25,0.7);backdrop-filter:blur(8px);padding:14px 24px;border-radius:60px;max-width:620px;margin:0 auto;border:1px solid rgba(255,255,255,0.08);z-index:20;pointer-events:auto;';
+    container.appendChild(controlsDiv);
+    controlsDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <span>⏵ 公转速度</span>
+        <input type="range" id="orbitSpeed" min="0" max="2" step="0.05" value="0.5" style="width:90px;">
+        <span id="speedLabel">0.5x</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <label><input type="checkbox" id="showRays" checked> 光线</label>
+      </div>
+      <div><button id="resetViewBtn" style="background:#2a3a7a;border:none;color:white;padding:4px 16px;border-radius:30px;font-size:0.75rem;cursor:pointer;border:1px solid #4a6aaa;">⟲ 重置</button></div>
+    `;
+    const speedSlider = controlsDiv.querySelector('#orbitSpeed');
+    const speedLabel2 = controlsDiv.querySelector('#speedLabel');
+    const toggleRays = controlsDiv.querySelector('#showRays');
+    const resetBtn = controlsDiv.querySelector('#resetViewBtn');
+
+    speedSlider.addEventListener('input', (e) => {
+      speedFactor = parseFloat(e.target.value);
+      speedLabel2.textContent = speedFactor.toFixed(1) + 'x';
+    });
+    toggleRays.addEventListener('change', (e) => {
+      showRays = e.target.checked;
+      rayGroup.visible = showRays;
+    });
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(10, 6, 14);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    function updateScene(angle) {
+      const sx = Math.cos(angle) * sunDist;
+      const sz = Math.sin(angle) * sunDist;
+      sunGroup.position.set(sx, 0, sz);
+      const lightDir = new THREE.Vector3(sx, 0, sz).normalize();
+      const localLightDir = lightDir.clone().applyQuaternion(
+        new THREE.Quaternion().copy(earthGroup.quaternion).invert()
+      );
+      const hitPointLocal = localLightDir.clone().multiplyScalar(2.25);
+      spot.position.copy(hitPointLocal);
+      glowSpot.position.copy(hitPointLocal);
+      const latRad = Math.asin(Math.max(-1, Math.min(1, hitPointLocal.y / 2.25)));
+      const latDeg = latRad * 180 / Math.PI;
+      updateDirectSVG(latDeg);
+
+      rayGroup.children.forEach(child => {
+        if (child.isLine) {
+          const pos = child.geometry.attributes.position.array;
+          if (child === directRay) {
+            const hitWorld = hitPointLocal.clone().applyQuaternion(earthGroup.quaternion);
+            pos[0] = sx; pos[1] = 0; pos[2] = sz;
+            pos[3] = hitWorld.x; pos[4] = hitWorld.y; pos[5] = hitWorld.z;
+          } else {
+            const ox = (Math.random() - 0.5) * 1.6;
+            const oz = (Math.random() - 0.5) * 1.6;
+            pos[0] = sx + ox * 0.5;
+            pos[1] = (Math.random() - 0.5) * 0.8;
+            pos[2] = sz + oz * 0.5;
+            pos[3] = ox * 0.5;
+            pos[4] = (Math.random() - 0.5) * 0.8;
+            pos[5] = oz * 0.5;
+          }
+          child.geometry.attributes.position.needsUpdate = true;
+        }
+      });
+    }
+
+    let animId = null;
+    function animate() {
+      animId = requestAnimationFrame(animate);
+      orbitAngle += 0.003 * speedFactor;
+      if (orbitAngle > Math.PI * 2) orbitAngle -= Math.PI * 2;
+      updateScene(orbitAngle);
+      stars.rotation.y += 0.00008;
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeHandler = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      labelRenderer.setSize(w, h);
+    };
+    window.addEventListener('resize', resizeHandler);
+
+    return {
+      scene, camera, renderer, labelRenderer, controls,
+      animationId: animId,
+      dispose: () => {
+        if (animId) cancelAnimationFrame(animId);
+        window.removeEventListener('resize', resizeHandler);
+        renderer.dispose();
+        labelRenderer.domElement.remove();
+        controlsDiv.remove();
+        container.innerHTML = '';
+        directSvgWrap.style.display = 'none';
+      }
+    };
+  }
+
+  // ========== 模块4: 四季五带 ==========
+  function buildSeason(container) {
+    container.innerHTML = '';
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a1a);
+    const camera = new THREE.PerspectiveCamera(35, container.clientWidth/container.clientHeight, 0.1, 100);
+    camera.position.set(10, 6, 14);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.left = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 5;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0x4488aa, 0.6);
+    scene.add(ambient);
+    const mainLight = new THREE.DirectionalLight(0xffeedd, 1.0);
+    mainLight.position.set(5, 3, 5);
+    scene.add(mainLight);
+    const fillLight = new THREE.DirectionalLight(0x88bbff, 0.4);
+    fillLight.position.set(-3, 1, -3);
+    scene.add(fillLight);
+    const stars = createStars(scene);
+
+    const sunGroup = new THREE.Group();
+    scene.add(sunGroup);
+    const sunDist = 7.0;
+    const sunGeo = new THREE.SphereGeometry(0.9, 32, 32);
+    const sunMat = new THREE.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xff5500, emissiveIntensity: 1.5 });
+    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    sunGroup.add(sunMesh);
+    const glowGeo = new THREE.BufferGeometry();
+    const glowCount = 150;
+    const glowPos = new Float32Array(glowCount * 3);
+    for (let i=0; i<glowCount; i++) {
+      const r = 1.0 + Math.random() * 0.6;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+      glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+      glowPos[i*3+2] = Math.cos(phi) * r;
+    }
+    glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+    const glowMat = new THREE.PointsMaterial({
+      color: 0xffaa33,
+      size: 0.08,
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+    const glow = new THREE.Points(glowGeo, glowMat);
+    sunGroup.add(glow);
+    const sunLabelDiv = document.createElement('div');
+    sunLabelDiv.textContent = '☀️ 太阳';
+    sunLabelDiv.style.cssText = 'color:#ffaa44;font-size:16px;font-weight:bold;text-shadow:0 0 20px #ff8800;';
+    const sunLabel = new CSS2DObject(sunLabelDiv);
+    sunLabel.position.set(0, 1.6, 0);
+    sunGroup.add(sunLabel);
+
+    const orbitPoints = [];
+    for (let i=0; i<=128; i++) {
+      const a = (i/128) * Math.PI * 2;
+      orbitPoints.push(new THREE.Vector3(Math.cos(a) * sunDist, 0, Math.sin(a) * sunDist));
+    }
+    const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+    const orbitMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.15, transparent: true });
+    const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+    scene.add(orbitLine);
+
+    const markPositions = [
+      {angle:0, label:'春分'},
+      {angle:Math.PI/2, label:'夏至'},
+      {angle:Math.PI, label:'秋分'},
+      {angle:3*Math.PI/2, label:'冬至'}
+    ];
+    markPositions.forEach(({angle,label}) => {
+      const x = Math.cos(angle) * sunDist;
+      const z = Math.sin(angle) * sunDist;
+      const div = document.createElement('div');
+      div.textContent = label;
+      div.style.cssText = 'color:#88ddff;font-size:12px;opacity:0.5;text-shadow:0 0 8px #000;';
+      const obj = new CSS2DObject(div);
+      obj.position.set(x, -0.8, z);
+      scene.add(obj);
+    });
+
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+    earthGroup.rotation.x = 23.5 * Math.PI / 180;
+    const textureLoader = new THREE.TextureLoader();
+    const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const cloudTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+    const earthGeo = new THREE.SphereGeometry(2.2, 96, 96);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: mapTex,
+      shininess: 8,
+      specular: new THREE.Color(0x224466),
+      emissive: new THREE.Color(0x001122),
+      emissiveIntensity: 0.05
+    });
+    const earth = new THREE.Mesh(earthGeo, earthMat);
+    earthGroup.add(earth);
+    const cloudGeo = new THREE.SphereGeometry(2.23, 64, 64);
+    const cloudMat = new THREE.MeshPhongMaterial({
+      map: cloudTex,
+      transparent: true,
+      opacity: 0.12,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+    earthGroup.add(clouds);
+    const labelDiv = document.createElement('div');
+    labelDiv.textContent = '🌍 地球';
+    labelDiv.style.cssText = 'color:#88ddff;font-size:16px;font-weight:bold;text-shadow:0 0 16px #2266cc;';
+    const label = new CSS2DObject(labelDiv);
+    label.position.set(0, 2.8, 0);
+    earthGroup.add(label);
+
+    const axisGroup = new THREE.Group();
+    const axisLength = 2.6;
+    const axisPoints = [new THREE.Vector3(0, -axisLength, 0), new THREE.Vector3(0, axisLength, 0)];
+    const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.7, transparent: true });
+    const axisLine = new THREE.Line(axisGeo, axisMat);
+    axisGroup.add(axisLine);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+    const capGeo = new THREE.SphereGeometry(0.08, 8, 8);
+    const capTop = new THREE.Mesh(capGeo, capMat);
+    capTop.position.set(0, axisLength, 0);
+    axisGroup.add(capTop);
+    const capBottom = new THREE.Mesh(capGeo, capMat);
+    capBottom.position.set(0, -axisLength, 0);
+    axisGroup.add(capBottom);
+    const nLabelDiv = document.createElement('div');
+    nLabelDiv.textContent = 'N';
+    nLabelDiv.style.cssText = 'color:#88ddff;font-size:14px;font-weight:bold;text-shadow:0 0 12px #2266aa;';
+    const nLabel = new CSS2DObject(nLabelDiv);
+    nLabel.position.set(0, axisLength + 0.3, 0);
+    axisGroup.add(nLabel);
+    earthGroup.add(axisGroup);
+
+    const labelGroup = new THREE.Group();
+    earthGroup.add(labelGroup);
+    const R = 2.25;
+    const zoneData = {
+      '赤道': { zone: '热带', tag: 'tropical', desc: '太阳直射，终年高温，昼夜变化小' },
+      '23.5°N': { zone: '热带/亚热带过渡带', tag: 'tropical', desc: '北回归线，太阳直射的最北界' },
+      '23.5°S': { zone: '热带/亚热带过渡带', tag: 'tropical', desc: '南回归线，太阳直射的最南界' },
+      '66.5°N': { zone: '北温带/北寒带分界', tag: 'frigid', desc: '北极圈，极昼极夜现象的最南界' },
+      '66.5°S': { zone: '南温带/南寒带分界', tag: 'frigid', desc: '南极圈，极昼极夜现象的最北界' },
+    };
+    function makeLatCircle(latDeg, color, opacity, labelText, offset) {
+      const latRad = latDeg * Math.PI / 180;
+      const r = R * Math.cos(latRad);
+      const y = R * Math.sin(latRad);
+      const pts = [];
+      for (let i=0; i<=64; i++) {
+        const a = (i/64) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+      const line = new THREE.Line(geo, mat);
+      labelGroup.add(line);
+      if (labelText) {
+        const div = document.createElement('div');
+        div.textContent = labelText;
+        div.style.cssText = 'color:#fff;font-size:10px;background:rgba(0,0,0,0.5);padding:2px 8px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;pointer-events:auto;';
+        div.addEventListener('click', () => {
+          const data = zoneData[labelText];
+          if (data) alert(`${labelText}\n${data.zone}\n${data.desc}`);
+        });
+        const obj = new CSS2DObject(div);
+        const off = offset || 0.3;
+        obj.position.set(r + off, y, 0);
+        labelGroup.add(obj);
+        const div2 = div.cloneNode(true);
+        const obj2 = new CSS2DObject(div2);
+        obj2.position.set(-(r + off), y, 0);
+        labelGroup.add(obj2);
+      }
+    }
+    makeLatCircle(0, 0xffaa44, 0.5, '赤道', 0.4);
+    makeLatCircle(23.5, 0xff8844, 0.6, '23.5°N', 0.5);
+    makeLatCircle(-23.5, 0xff8844, 0.6, '23.5°S', 0.5);
+    makeLatCircle(66.5, 0x88ddff, 0.4, '66.5°N', 0.5);
+    makeLatCircle(-66.5, 0x88ddff, 0.4, '66.5°S', 0.5);
+
+    const rayGroup = new THREE.Group();
+    scene.add(rayGroup);
+    for (let i=0; i<18; i++) {
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.08 + Math.random()*0.06 });
+      const line = new THREE.Line(geo, mat);
+      rayGroup.add(line);
+    }
+    const directRayMat = new THREE.LineBasicMaterial({ color: 0xff4400, opacity: 0.9, transparent: true });
+    const directRayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+    const directRay = new THREE.Line(directRayGeo, directRayMat);
+    rayGroup.add(directRay);
+
+    const spotMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+    const spotGeo = new THREE.SphereGeometry(0.18, 8, 8);
+    const spot = new THREE.Mesh(spotGeo, spotMat);
+    earthGroup.add(spot);
+    const glowSpotMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.15 });
+    const glowSpotGeo = new THREE.SphereGeometry(0.4, 8, 8);
+    const glowSpot = new THREE.Mesh(glowSpotGeo, glowSpotMat);
+    earthGroup.add(glowSpot);
+
+    let orbitAngle = 0;
+    let speedFactor = 0.5;
+    let showRays = true;
+    let showLabels = true;
+
+    const controlsDiv = document.createElement('div');
+    controlsDiv.style.cssText = 'position:absolute;bottom:30px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 24px;background:rgba(10,10,25,0.7);backdrop-filter:blur(8px);padding:14px 24px;border-radius:60px;max-width:620px;margin:0 auto;border:1px solid rgba(255,255,255,0.08);z-index:20;pointer-events:auto;';
+    container.appendChild(controlsDiv);
+    controlsDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <span>⏵ 公转速度</span>
+        <input type="range" id="orbitSpeed" min="0" max="2" step="0.05" value="0.5" style="width:90px;">
+        <span id="speedLabel">0.5x</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;color:#d0d9ff;font-size:0.8rem;">
+        <label><input type="checkbox" id="showRays" checked> 光线</label>
+        <label><input type="checkbox" id="showLabels" checked> 标注</label>
+      </div>
+      <div><button id="resetViewBtn" style="background:#2a3a7a;border:none;color:white;padding:4px 16px;border-radius:30px;font-size:0.75rem;cursor:pointer;border:1px solid #4a6aaa;">⟲ 重置</button></div>
+    `;
+    const speedSlider = controlsDiv.querySelector('#orbitSpeed');
+    const speedLabel2 = controlsDiv.querySelector('#speedLabel');
+    const toggleRays = controlsDiv.querySelector('#showRays');
+    const toggleLabels = controlsDiv.querySelector('#showLabels');
+    const resetBtn = controlsDiv.querySelector('#resetViewBtn');
+
+    speedSlider.addEventListener('input', (e) => {
+      speedFactor = parseFloat(e.target.value);
+      speedLabel2.textContent = speedFactor.toFixed(1) + 'x';
+    });
+    toggleRays.addEventListener('change', (e) => {
+      showRays = e.target.checked;
+      rayGroup.visible = showRays;
+    });
+    toggleLabels.addEventListener('change', (e) => {
+      showLabels = e.target.checked;
+      labelGroup.visible = showLabels;
+    });
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(10, 6, 14);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    function updateScene(angle) {
+      const sx = Math.cos(angle) * sunDist;
+      const sz = Math.sin(angle) * sunDist;
+      sunGroup.position.set(sx, 0, sz);
+      const lightDir = new THREE.Vector3(sx, 0, sz).normalize();
+      const localLightDir = lightDir.clone().applyQuaternion(
+        new THREE.Quaternion().copy(earthGroup.quaternion).invert()
+      );
+      const hitPointLocal = localLightDir.clone().multiplyScalar(2.25);
+      spot.position.copy(hitPointLocal);
+      glowSpot.position.copy(hitPointLocal);
+
+      rayGroup.children.forEach(child => {
+        if (child.isLine) {
+          const pos = child.geometry.attributes.position.array;
+          if (child === directRay) {
+            const hitWorld = hitPointLocal.clone().applyQuaternion(earthGroup.quaternion);
+            pos[0] = sx; pos[1] = 0; pos[2] = sz;
+            pos[3] = hitWorld.x; pos[4] = hitWorld.y; pos[5] = hitWorld.z;
+          } else {
+            const ox = (Math.random() - 0.5) * 1.8;
+            const oz = (Math.random() - 0.5) * 1.8;
+            pos[0] = sx + ox * 0.4;
+            pos[1] = (Math.random() - 0.5) * 0.8;
+            pos[2] = sz + oz * 0.4;
+            pos[3] = ox * 0.4;
+            pos[4] = (Math.random() - 0.5) * 0.8;
+            pos[5] = oz * 0.4;
+          }
+          child.geometry.attributes.position.needsUpdate = true;
+        }
+      });
+    }
+
+    let animId = null;
+    function animate() {
+      animId = requestAnimationFrame(animate);
+      orbitAngle += 0.003 * speedFactor;
+      if (orbitAngle > Math.PI * 2) orbitAngle -= Math.PI * 2;
+      updateScene(orbitAngle);
+      clouds.rotation.y += 0.0008 * speedFactor;
+      stars.rotation.y += 0.00008;
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeHandler = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      labelRenderer.setSize(w, h);
+    };
+    window.addEventListener('resize', resizeHandler);
+
+    return {
+      scene, camera, renderer, labelRenderer, controls,
+      animationId: animId,
+      dispose: () => {
+        if (animId) cancelAnimationFrame(animId);
+        window.removeEventListener('resize', resizeHandler);
+        renderer.dispose();
+        labelRenderer.domElement.remove();
+        controlsDiv.remove();
+        container.innerHTML = '';
+      }
+    };
+  }
+
+  // ========== 模块5: 正午太阳高度角 ==========
+  function buildAngle(container) {
+    container.innerHTML = '';
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x080c1a);
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth/container.clientHeight, 0.1, 100);
+    camera.position.set(8, 4, 12);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(container.clientWidth, container.clientHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.left = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 5;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0x4488aa, 0.5);
+    scene.add(ambient);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    mainLight.position.set(5, 3, 5);
+    scene.add(mainLight);
+    const fillLight = new THREE.DirectionalLight(0x88bbff, 0.3);
+    fillLight.position.set(-3, 1, -3);
+    scene.add(fillLight);
+    const stars = createStars(scene);
+
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+    earthGroup.rotation.x = 23.5 * Math.PI / 180;
+    const textureLoader = new THREE.TextureLoader();
+    const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const earthGeo = new THREE.SphereGeometry(2.5, 96, 96);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: mapTex,
+      shininess: 10,
+      specular: new THREE.Color(0x224466)
+    });
+    const earth = new THREE.Mesh(earthGeo, earthMat);
+    earthGroup.add(earth);
+
+    const axisLen = 3.0;
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.5, transparent: true });
+    const axisPoints = [new THREE.Vector3(0, -axisLen, 0), new THREE.Vector3(0, axisLen, 0)];
+    const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+    const axisLine = new THREE.Line(axisGeo, axisMat);
+    earthGroup.add(axisLine);
+    const makeAxisLabel = (text, y) => {
+      const div = document.createElement('div');
+      div.textContent = text;
+      div.style.cssText = 'color:#88ddff;font-size:14px;font-weight:bold;text-shadow:0 0 12px #2266aa;';
+      const obj = new CSS2DObject(div);
+      obj.position.set(0, y, 0);
+      earthGroup.add(obj);
+    };
+    makeAxisLabel('N', axisLen + 0.4);
+    makeAxisLabel('S', -axisLen - 0.4);
+
+    const R = 2.52;
+    const latLineGroup = new THREE.Group();
+    earthGroup.add(latLineGroup);
+    const latLines = [
+      {deg:0, color:0xffaa44, label:'赤道'},
+      {deg:23.5, color:0xff8844, label:'23.5°N'},
+      {deg:-23.5, color:0xff8844, label:'23.5°S'},
+      {deg:66.5, color:0x88ddff, label:'66.5°N'},
+      {deg:-66.5, color:0x88ddff, label:'66.5°S'}
+    ];
+    latLines.forEach(({deg, color, label}) => {
+      const rad = deg * Math.PI / 180;
+      const r = R * Math.cos(rad);
+      const y = R * Math.sin(rad);
+      const pts = [];
+      for (let i=0; i<=64; i++) {
+        const a = (i/64) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 });
+      const line = new THREE.Line(geo, mat);
+      latLineGroup.add(line);
+      if (label) {
+        const div = document.createElement('div');
+        div.textContent = label;
+        div.style.cssText = 'color:#fff;font-size:10px;background:rgba(0,0,0,0.5);padding:2px 8px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;pointer-events:auto;';
+        div.addEventListener('click', () => {
+          let t = 0;
+          if (label === '赤道') t = 0;
+          else if (label === '23.5°N') t = 23.5;
+          else if (label === '23.5°S') t = -23.5;
+          else if (label === '66.5°N') t = 66.5;
+          else if (label === '66.5°S') t = -66.5;
+          document.getElementById('latSlider').value = t;
+          updateAngle();
+        });
+        const obj = new CSS2DObject(div);
+        const off = 0.4;
+        obj.position.set(r + off, y, 0);
+        latLineGroup.add(obj);
+        const div2 = div.cloneNode(true);
+        const obj2 = new CSS2DObject(div2);
+        obj2.position.set(-(r + off), y, 0);
+        latLineGroup.add(obj2);
+      }
+    });
+
+    const rayGroup = new THREE.Group();
+    scene.add(rayGroup);
+    for (let i=0; i<24; i++) {
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.06 + Math.random()*0.05 });
+      const line = new THREE.Line(geo, mat);
+      rayGroup.add(line);
+    }
+    const mainRayMat = new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.3 });
+    const mainRayPts = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)];
+    const mainRayGeo = new THREE.BufferGeometry().setFromPoints(mainRayPts);
+    const mainRay = new THREE.Line(mainRayGeo, mainRayMat);
+    rayGroup.add(mainRay);
+
+    const spotMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, depthTest: false });
+    const spotGeo = new THREE.SphereGeometry(0.2, 12, 12);
+    const spot = new THREE.Mesh(spotGeo, spotMat);
+    spot.renderOrder = 999;
+    earthGroup.add(spot);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.15, depthTest: false });
+    const glowGeo = new THREE.SphereGeometry(0.5, 12, 12);
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.renderOrder = 998;
+    earthGroup.add(glow);
+
+    const userMarkerGroup = new THREE.Group();
+    earthGroup.add(userMarkerGroup);
+    const userCircleMat = new THREE.LineBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.6 });
+    const userCircleGeo = new THREE.BufferGeometry();
+    const userCirclePts = [];
+    for (let i=0; i<=64; i++) userCirclePts.push(new THREE.Vector3(0,0,0));
+    userCircleGeo.setFromPoints(userCirclePts);
+    const userCircle = new THREE.Line(userCircleGeo, userCircleMat);
+    userMarkerGroup.add(userCircle);
+    const userDotMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+    const userDotGeo = new THREE.SphereGeometry(0.18, 12, 12);
+    const userDot = new THREE.Mesh(userDotGeo, userDotMat);
+    userMarkerGroup.add(userDot);
+    const userDotGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.4, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.12 })
+    );
+    userMarkerGroup.add(userDotGlow);
+    const userLabelDiv = document.createElement('div');
+    userLabelDiv.textContent = '📍 30°N';
+    userLabelDiv.style.cssText = 'color:#ff8844;font-size:12px;font-weight:bold;text-shadow:0 0 16px #ff440066;';
+    const userLabel = new CSS2DObject(userLabelDiv);
+    userMarkerGroup.add(userLabel);
+
+    const arcGroup = new THREE.Group();
+    earthGroup.add(arcGroup);
+    const arcMat = new THREE.LineBasicMaterial({ color: 0x66ddff, transparent: true, opacity: 0.8 });
+    const arcGeo = new THREE.BufferGeometry();
+    const arcPts = [];
+    for (let i=0; i<=30; i++) arcPts.push(new THREE.Vector3(0,0,0));
+    arcGeo.setFromPoints(arcPts);
+    const arcLine = new THREE.Line(arcGeo, arcMat);
+    arcGroup.add(arcLine);
+    const angleLabelDiv = document.createElement('div');
+    angleLabelDiv.textContent = '60°';
+    angleLabelDiv.style.cssText = 'color:#66ddff;font-size:16px;font-weight:bold;text-shadow:0 0 20px #66ddff66;';
+    const angleLabel = new CSS2DObject(angleLabelDiv);
+    arcGroup.add(angleLabel);
+
+    let lat = 30, delta = 0;
+    const controlsDiv = document.createElement('div');
+    controlsDiv.style.cssText = 'position:absolute;bottom:30px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 16px;background:rgba(10,10,25,0.7);backdrop-filter:blur(8px);padding:14px 20px;border-radius:60px;max-width:720px;margin:0 auto;border:1px solid rgba(255,255,255,0.08);z-index:20;pointer-events:auto;';
+    container.appendChild(controlsDiv);
+    controlsDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;color:#d0d9ff;font-size:0.75rem;">
+        <span>📍 φ</span>
+        <input id="latSlider" type="range" min="-90" max="90" value="30" step="0.5" style="width:80px;">
+        <span id="latSliderVal">30°N</span>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="preset" data-lat="30">30°</button>
+        <button class="preset" data-lat="0">赤道</button>
+        <button class="preset" data-lat="23.5">回归线</button>
+        <button class="preset" data-lat="66.5">极圈</button>
+        <button class="preset" data-lat="90">极点</button>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="season" data-delta="0">春分</button>
+        <button class="season" data-delta="23.5">夏至</button>
+        <button class="season" data-delta="0">秋分</button>
+        <button class="season" data-delta="-23.5">冬至</button>
+      </div>
+      <div><button id="resetViewBtn" style="background:#2a3a7a;border:none;color:white;padding:4px 14px;border-radius:30px;font-size:0.7rem;cursor:pointer;border:1px solid #4a6aaa;">⟲ 重置</button></div>
+    `;
+
+    const latSliderEl = controlsDiv.querySelector('#latSlider');
+    const latSliderValEl = controlsDiv.querySelector('#latSliderVal');
+    const presetBtns = controlsDiv.querySelectorAll('.preset');
+    const seasonBtns = controlsDiv.querySelectorAll('.season');
+    const resetBtn = controlsDiv.querySelector('#resetViewBtn');
+
+    function updateAngle() {
+      lat = parseFloat(latSliderEl.value);
+      const latRad = lat * Math.PI / 180;
+      const deltaRad = delta * Math.PI / 180;
+      const latStr = lat >= 0 ? lat + '°N' : (-lat) + '°S';
+      latSliderValEl.textContent = latStr;
+      const angle = 90 - Math.abs(lat - delta);
+      const deltaStr = delta === 0 ? '0°（赤道）' : (delta > 0 ? delta + '°N' : (-delta) + '°S');
+
+      const rayLen = 8;
+      const mainPos = mainRay.geometry.attributes.position.array;
+      mainPos[0] = -rayLen * 0.5;
+      mainPos[1] = -rayLen * 0.5 * Math.tan(deltaRad) * 0.3;
+      mainPos[2] = 0;
+      mainPos[3] = rayLen * 0.5;
+      mainPos[4] = rayLen * 0.5 * Math.tan(deltaRad) * 0.3;
+      mainPos[5] = 0;
+      mainRay.geometry.attributes.position.needsUpdate = true;
+
+      rayGroup.children.forEach((line, i) => {
+        if (line === mainRay) return;
+        const pos = line.geometry.attributes.position.array;
+        const offset = (i / rayGroup.children.length - 0.5) * 2.5;
+        const yOff = offset * 0.8 + Math.sin(i * 1.3) * 0.2;
+        const xOff = Math.cos(i * 0.7) * 0.2;
+        pos[0] = -rayLen * 0.5 + xOff;
+        pos[1] = -rayLen * 0.5 * Math.tan(deltaRad) * 0.3 + yOff * 0.3;
+        pos[2] = offset * 0.6;
+        pos[3] = rayLen * 0.5 + xOff;
+        pos[4] = rayLen * 0.5 * Math.tan(deltaRad) * 0.3 + yOff * 0.3;
+        pos[5] = offset * 0.6;
+        line.geometry.attributes.position.needsUpdate = true;
+      });
+
+      const directLocal = new THREE.Vector3(R * Math.cos(deltaRad), R * Math.sin(deltaRad), 0);
+      spot.position.copy(directLocal);
+      glow.position.copy(directLocal);
+
+      const userY = R * Math.sin(latRad);
+      const userR = R * Math.cos(latRad);
+      const userPos = new THREE.Vector3(userR, userY, 0);
+      const cPos = userCircle.geometry.attributes.position.array;
+      for (let i=0; i<=64; i++) {
+        const a = (i/64) * Math.PI * 2;
+        cPos[i*3] = Math.cos(a) * userR;
+        cPos[i*3+1] = userY;
+        cPos[i*3+2] = Math.sin(a) * userR;
+      }
+      userCircle.geometry.attributes.position.needsUpdate = true;
+      userDot.position.copy(userPos);
+      userDotGlow.position.copy(userPos);
+      userLabel.position.set(userPos.x + 0.6, userPos.y + 0.2, userPos.z);
+      userLabelDiv.textContent = `📍 ${latStr}`;
+
+      const arcRadius = 0.8;
+      const angleRad = angle * Math.PI / 180;
+      const startA = -Math.PI / 2;
+      const endA = -Math.PI / 2 + angleRad;
+      const aPos = arcLine.geometry.attributes.position.array;
+      for (let i=0; i<=30; i++) {
+        const t = i / 30;
+        const a = startA + (endA - startA) * t;
+        const lightDirLocal = new THREE.Vector3(1, -Math.tan(deltaRad), 0).normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(lightDirLocal, up).normalize();
+        const localUp = new THREE.Vector3().crossVectors(right, lightDirLocal).normalize();
+        const off = new THREE.Vector3()
+          .addScaledVector(lightDirLocal, Math.cos(a) * arcRadius * 0.3)
+          .addScaledVector(localUp, Math.sin(a) * arcRadius * 0.6);
+        aPos[i*3] = userPos.x + off.x;
+        aPos[i*3+1] = userPos.y + off.y;
+        aPos[i*3+2] = userPos.z + off.z;
+      }
+      arcLine.geometry.attributes.position.needsUpdate = true;
+      const midA = (startA + endA) / 2;
+      angleLabel.position.set(
+        userPos.x + arcRadius * Math.cos(midA) * 0.3 + 0.2,
+        userPos.y + arcRadius * Math.sin(midA) * 0.6 + 0.2,
+        userPos.z
+      );
+      angleLabelDiv.textContent = angle.toFixed(1) + '°';
+    }
+
+    latSliderEl.addEventListener('input', updateAngle);
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        latSliderEl.value = btn.dataset.lat;
+        updateAngle();
+      });
+    });
+    seasonBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        delta = parseFloat(btn.dataset.delta);
+        seasonBtns.forEach(b => b.style.borderColor = 'rgba(255,255,255,0.08)');
+        btn.style.borderColor = '#ff8844';
+        updateAngle();
+      });
+    });
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(8, 4, 12);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    let animId = null;
+    function animate() {
+      animId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeHandler = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      labelRenderer.setSize(w, h);
+    };
+    window.addEventListener('resize', resizeHandler);
+    updateAngle();
+
+    return {
+      scene, camera, renderer, labelRenderer, controls,
+      animationId: animId,
+      dispose: () => {
+        if (animId) cancelAnimationFrame(animId);
+        window.removeEventListener('resize', resizeHandler);
+        renderer.dispose();
+        labelRenderer.domElement.remove();
+        controlsDiv.remove();
+        container.innerHTML = '';
+      }
+    };
+  }
+
+  // ========== 切换逻辑 ==========
+  function switchMode(mode) {
+    if (isTransitioning || mode === currentMode) return;
+    isTransitioning = true;
+    loader.classList.add('active');
+    if (activeScene) {
+      activeScene.dispose();
+      activeScene = null;
+    }
+    Object.values(containers).forEach(el => el.classList.add('hidden'));
+    if (mode === 'direct') directSvgWrap.style.display = 'block';
+    else directSvgWrap.style.display = 'none';
+
+    setTimeout(() => {
+      let container = null;
+      if (mode === 'orbit') {
+        container = containers.orbit;
+        container.classList.remove('hidden');
+        activeScene = buildOrbit(container);
+      } else if (mode === 'terminator') {
+        container = containers.terminator;
+        container.classList.remove('hidden');
+        activeScene = buildTerminator(container);
+      } else if (mode === 'direct') {
+        container = containers.direct;
+        container.classList.remove('hidden');
+        activeScene = buildDirect(container);
+      } else if (mode === 'season') {
+        container = containers.season;
+        container.classList.remove('hidden');
+        activeScene = buildSeason(container);
+      } else if (mode === 'angle') {
+        container = containers.angle;
+        container.classList.remove('hidden');
+        activeScene = buildAngle(container);
+      }
+      currentMode = mode;
+      tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+      loader.classList.remove('active');
+      isTransitioning = false;
+    }, 800);
+  }
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = btn.dataset.mode;
+      if (m !== currentMode) switchMode(m);
+    });
+  });
+
+  // ===== 如果用户未点击 splash，但直接点击了 tab，则自动进入 =====
+  // 但 splash 会拦截点击，所以不需要额外处理。
+  // 如果用户通过其他方式触发，确保场景已构建。
+  // 当 splash 淡出后，如果场景未构建，则构建默认场景。
+  // 在 enterApp 中已处理。
+
+  // 额外安全：如果用户点击 tab 时 splash 未消失，则先进入。
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!splashDone) enterApp();
+    });
+  });
+
+  // 初始状态：splash 显示，场景未构建（延迟构建）
+  // 为了加快响应，在 splash 显示时先不构建场景，等进入后再构建。
+  // 但为了在点击 tab 时能立即切换，我们在 enterApp 中构建默认场景。
+  // 如果用户点击了 tab，会触发 switchMode，但此时 activeScene 可能为 null，
+  // switchMode 会检查 activeScene 并调用 dispose，但 activeScene 为 null 时没问题。
+  // 但是 switchMode 会调用 activeScene.dispose()，需要加判断。
+  // 修改 switchMode 中的 dispose 调用：
+  // 原：if (activeScene) { activeScene.dispose(); activeScene = null; }
+  // 已存在。
+
+  console.log('🌍 地球运动 · 全场景模拟 五合一 已启动');
+  console.log('©2026 璧山中学电子科教与融媒体发展促进中心 · 开发者：丁家茗');
+</script>
+</body>
+</html>

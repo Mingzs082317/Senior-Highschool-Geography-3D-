@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>地球自转与公转 · 动态交互教学 </title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+      background-color: #050510;
+      color: white;
+    }
+    #info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      padding: 14px 24px;
+      border-radius: 40px;
+      border-left: 4px solid #ffaa44;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #info h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 500;
+      letter-spacing: 2px;
+      color: #fff6e5;
+    }
+    #info h1 span {
+      color: #ffaa44;
+      font-weight: 700;
+      margin-right: 6px;
+    }
+    #info .sub {
+      font-size: 0.75rem;
+      opacity: 0.7;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    #controls-panel {
+      position: absolute;
+      bottom: 30px;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px 30px;
+      background: rgba(10, 10, 25, 0.7);
+      backdrop-filter: blur(8px);
+      padding: 18px 28px;
+      border-radius: 60px;
+      max-width: 760px;
+      margin: 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      z-index: 20;
+      pointer-events: auto;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #d0d9ff;
+      font-size: 0.85rem;
+      font-weight: 400;
+      letter-spacing: 0.5px;
+    }
+    .control-group label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .control-group input[type="range"] {
+      width: 100px;
+      height: 4px;
+      background: #3a4a8c;
+      border-radius: 10px;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+    .control-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffaa44;
+      cursor: pointer;
+      box-shadow: 0 0 12px #ffaa44aa;
+      border: 1px solid #fff5;
+    }
+    .control-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #ffaa44;
+      transform: scale(1.1);
+      cursor: pointer;
+    }
+    .btn-reset {
+      background: #2a3a7a;
+      border: none;
+      color: white;
+      padding: 6px 18px;
+      border-radius: 30px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.2s;
+      letter-spacing: 1px;
+      border: 1px solid #4a6aaa;
+    }
+    .btn-reset:hover {
+      background: #3a5a9a;
+      box-shadow: 0 0 16px #3a5aaa66;
+      transform: scale(1.02);
+    }
+    #legend {
+      position: absolute;
+      bottom: 100px;
+      right: 20px;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      padding: 10px 16px;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      color: #aab8ff;
+      border: 1px solid #2a3a7a;
+      pointer-events: none;
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      line-height: 1.4;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    #footer-panel {
+      position: absolute;
+      bottom: 100px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(6px);
+      padding: 14px 20px;
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      max-width: 280px;
+      font-size: 0.7rem;
+      line-height: 1.5;
+      color: #ccd9ff;
+      pointer-events: none;
+      z-index: 15;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    #footer-panel .copyright {
+      color: #ffaa44;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid rgba(255,170,68,0.2);
+      padding-bottom: 4px;
+    }
+    #footer-panel .knowledge {
+      font-size: 0.65rem;
+      opacity: 0.9;
+    }
+    #footer-panel .knowledge strong {
+      color: #88ddff;
+    }
+    @media (max-width: 700px) {
+      #controls-panel {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        border-radius: 30px;
+        padding: 16px 20px;
+        max-width: 94%;
+        bottom: 16px;
+      }
+      .control-group {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      #info {
+        top: 12px;
+        left: 12px;
+        padding: 8px 16px;
+      }
+      #info h1 { font-size: 1.2rem; }
+      #legend {
+        bottom: 170px;
+        right: 10px;
+        padding: 6px 12px;
+        font-size: 0.6rem;
+      }
+      #footer-panel {
+        bottom: 140px;
+        left: 10px;
+        max-width: 200px;
+        padding: 10px 14px;
+        font-size: 0.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1><span>🌍</span> 地球运动 </h1>
+    <div class="sub">自转与公转及其地理意义</div>
+  </div>
+
+  <div id="legend">
+    <div class="legend-item"><span class="color-dot" style="background:#ffaa44;"></span> 太阳</div>
+    <div class="legend-item"><span class="color-dot" style="background:#3a8cff;"></span> 地球</div>
+    <div class="legend-item"><span class="color-dot" style="background:#88ddff;"></span> 地轴 (倾斜23.5°)</div>
+    <div class="legend-item"><span class="color-dot" style="background:#ff88aa;"></span> 公转轨道</div>
+  </div>
+
+  <div id="footer-panel">
+    <div class="copyright">©2026 璧山中学电子科教与融媒体发展中心 电子科教与信息技术部</div>
+    <div class="knowledge">
+      <strong>自转</strong>：地球绕自身轴（地轴）旋转，周期约24小时（恒星日23时56分）。<br>
+      地理意义：昼夜交替、时区、地转偏向力。<br>
+      <strong>公转</strong>：地球绕太阳运行，周期约365.25天（回归年）。<br>
+      地理意义：四季变化、五带划分、正午太阳高度变化。<br>
+      <span style="opacity:0.6; font-size:0.6rem;">黄赤交角23.5° → 太阳直射点移动</span>
+    </div>
+  </div>
+
+  <div id="controls-panel">
+    <div class="control-group">
+      <span>⏵ 公转速度</span>
+      <input type="range" id="orbitSpeed" min="0.0" max="2.0" step="0.05" value="0.6">
+      <span id="speedLabel">0.6x</span>
+    </div>
+    <div class="control-group">
+      <label><input type="checkbox" id="toggleRotation" checked> 自转</label>
+      <label><input type="checkbox" id="toggleOrbit" checked> 公转</label>
+    </div>
+    <div class="control-group">
+      <button class="btn-reset" id="resetViewBtn">⟲ 重置视角</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+    // --- 初始化场景、相机、渲染器 ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050510);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(8, 5, 12);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.bias = 0.0005;
+    document.body.appendChild(renderer.domElement);
+
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0px';
+    labelRenderer.domElement.style.left = '0px';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    document.body.appendChild(labelRenderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.autoRotate = false;
+    controls.minDistance = 4;
+    controls.maxDistance = 30;
+    controls.target.set(0, 0, 0);
+
+    // --- 灯光 ---
+    const ambientLight = new THREE.AmbientLight(0x404060);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.PointLight(0xffeedd, 2.5, 0, 0);
+    sunLight.position.set(0, 0, 0);
+    scene.add(sunLight);
+    const fillLight = new THREE.DirectionalLight(0x446688, 0.8);
+    fillLight.position.set(1, 1, 1);
+    scene.add(fillLight);
+    const backLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+    backLight.position.set(-1, 0.5, -1);
+    scene.add(backLight);
+
+    // --- 星空 ---
+    const starsGeometry = new THREE.BufferGeometry();
+    const starCount = 3000;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+      const r = 40 + Math.random() * 40;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      starPositions[i] = Math.sin(phi) * Math.cos(theta) * r;
+      starPositions[i+1] = Math.sin(phi) * Math.sin(theta) * r;
+      starPositions[i+2] = Math.cos(phi) * r;
+    }
+    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starsMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.25,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    });
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
+
+    // --- 太阳 ---
+    const sunGeometry = new THREE.SphereGeometry(1.2, 48, 48);
+    const sunMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffaa44,
+      emissive: 0xff5500,
+      emissiveIntensity: 0.8,
+      roughness: 0.2,
+    });
+    const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+    sun.castShadow = false;
+    scene.add(sun);
+    
+    const glowParticles = new THREE.BufferGeometry();
+    const glowCount = 400;
+    const glowPos = new Float32Array(glowCount * 3);
+    for (let i = 0; i < glowCount; i++) {
+      const r = 1.5 + Math.random() * 0.8;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+      glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+      glowPos[i*3+2] = Math.cos(phi) * r;
+    }
+    glowParticles.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+    const glowMat = new THREE.PointsMaterial({
+      color: 0xffaa33,
+      size: 0.06,
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+    const glow = new THREE.Points(glowParticles, glowMat);
+    scene.add(glow);
+
+    const sunLabelDiv = document.createElement('div');
+    sunLabelDiv.textContent = '☀️ 太阳';
+    sunLabelDiv.style.color = '#ffaa44';
+    sunLabelDiv.style.fontSize = '16px';
+    sunLabelDiv.style.fontWeight = 'bold';
+    sunLabelDiv.style.textShadow = '0 0 20px #ff8800';
+    const sunLabel = new CSS2DObject(sunLabelDiv);
+    sunLabel.position.set(0, 1.8, 0);
+    scene.add(sunLabel);
+
+    // --- 公转轨道 ---
+    const radiusX = 4.8;
+    const radiusZ = 4.8;
+    const orbitPoints = [];
+    const segments = 128;
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const x = Math.cos(angle) * radiusX;
+      const z = Math.sin(angle) * radiusZ;
+      orbitPoints.push(new THREE.Vector3(x, 0, z));
+    }
+    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+    const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.3, transparent: true });
+    const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+    scene.add(orbitLine);
+
+    const ringGeometry = new THREE.RingGeometry(4.7, 4.9, 64);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: 0x88ddff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.08
+    });
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.rotation.x = -Math.PI / 2;
+    scene.add(ring);
+
+    // --- 地球 (地轴固定指向) ---
+    const textureLoader = new THREE.TextureLoader();
+    const mapTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+    const specularTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg');
+    const normalTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg');
+    const cloudTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+
+    // 地球容器组 - 用于整体定位
+    const earthOrbitGroup = new THREE.Group();
+    scene.add(earthOrbitGroup);
+
+    // 地球本身组 - 包含地球、云层、地轴、标签，内部旋转用于自转
+    const earthGroup = new THREE.Group();
+    earthOrbitGroup.add(earthGroup);
+
+    // 地球本体
+    const earthGeo = new THREE.SphereGeometry(1.2, 64, 64);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map: mapTexture,
+      specularMap: specularTexture,
+      specular: 0x333333,
+      shininess: 5,
+      normalMap: normalTexture,
+      normalScale: new THREE.Vector2(0.8, 0.8),
+    });
+    const earth = new THREE.Mesh(earthGeo, earthMat);
+    earth.castShadow = true;
+    earth.receiveShadow = true;
+    earthGroup.add(earth);
+
+    // 云层
+    const cloudGeo = new THREE.SphereGeometry(1.22, 64, 64);
+    const cloudMat = new THREE.MeshPhongMaterial({
+      map: cloudTexture,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+    earthGroup.add(clouds);
+
+    // ---- 地轴 (固定方向) ----
+    // 我们创建一个轴组，其旋转固定指向空间中的同一方向。
+    // 方法：在 earthGroup 中，我们设置 rotation.x = 23.5° 固定，然后 earthOrbitGroup 整体绕Y轴旋转。
+    // 但为了地轴指向固定，我们需要让 earthGroup 的旋转抵消公转带来的方向变化。
+    // 更稳健的方法：将 earthGroup 放在一个容器中，让容器的旋转与公转同步，但 earthGroup 本身做反向旋转，使地轴始终指向同一空间方向。
+    // 这里采用：earthGroup 的 rotation.y 始终等于 -orbitAngle，这样地轴在空间中的指向固定。
+    // 同时自转在内部进行。
+    
+    // 地轴线
+    const axisGroup = new THREE.Group();
+    const axisLength = 1.9;
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.7, transparent: true });
+    const axisPoints = [
+      new THREE.Vector3(0, -axisLength, 0),
+      new THREE.Vector3(0, axisLength, 0)
+    ];
+    const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+    const axisLine = new THREE.Line(axisGeo, axisMat);
+    axisGroup.add(axisLine);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+    const capGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const capTop = new THREE.Mesh(capGeo, capMat);
+    capTop.position.set(0, axisLength, 0);
+    axisGroup.add(capTop);
+    const capBottom = new THREE.Mesh(capGeo, capMat);
+    capBottom.position.set(0, -axisLength, 0);
+    axisGroup.add(capBottom);
+    const polarLabelDiv = document.createElement('div');
+    polarLabelDiv.textContent = 'N';
+    polarLabelDiv.style.color = '#88ddff';
+    polarLabelDiv.style.fontSize = '12px';
+    polarLabelDiv.style.fontWeight = 'bold';
+    polarLabelDiv.style.textShadow = '0 0 8px #2266aa';
+    const polarLabel = new CSS2DObject(polarLabelDiv);
+    polarLabel.position.set(0, axisLength + 0.3, 0);
+    axisGroup.add(polarLabel);
+
+    earthGroup.add(axisGroup);
+
+    // 地轴倾斜固定为 23.5° (绕X轴)
+    earthGroup.rotation.x = 23.5 * Math.PI / 180;
+    // 轻微偏转使更真实 (绕Z轴小角度)
+    earthGroup.rotation.z = -0.1;
+
+    // 地球标签
+    const earthLabelDiv = document.createElement('div');
+    earthLabelDiv.textContent = '🌍 地球';
+    earthLabelDiv.style.color = '#88ddff';
+    earthLabelDiv.style.fontSize = '14px';
+    earthLabelDiv.style.fontWeight = 'bold';
+    earthLabelDiv.style.textShadow = '0 0 12px #2266cc';
+    const earthLabel = new CSS2DObject(earthLabelDiv);
+    earthLabel.position.set(0, 1.9, 0);
+    earthGroup.add(earthLabel);
+
+    // 初始位置：春分点 (+X)
+    earthOrbitGroup.position.set(radiusX, 0, 0);
+
+    // 网格参考
+    const gridHelper = new THREE.GridHelper(12, 12, 0x88aaff, 0x445577);
+    gridHelper.position.y = -0.1;
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.15;
+    scene.add(gridHelper);
+
+    // 装饰小行星
+    for (let i = 0; i < 30; i++) {
+      const size = 0.03 + Math.random() * 0.04;
+      const dotMat = new THREE.MeshBasicMaterial({ color: 0x88aaff });
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(size, 4, 4), dotMat);
+      const angle = Math.random() * Math.PI * 2;
+      const r = 4.8 + (Math.random() - 0.5) * 0.3;
+      dot.position.set(Math.cos(angle) * r, (Math.random() - 0.5) * 0.2, Math.sin(angle) * r);
+      scene.add(dot);
+    }
+
+    // --- 状态变量 ---
+    let orbitAngle = 0;        // 0 = 春分, PI/2 = 夏至, PI = 秋分, 3*PI/2 = 冬至
+    let speedFactor = 0.6;
+    let autoRotateEarth = true;
+    let autoOrbit = true;
+
+    // DOM 元素
+    const speedSlider = document.getElementById('orbitSpeed');
+    const speedLabel = document.getElementById('speedLabel');
+    const toggleRotation = document.getElementById('toggleRotation');
+    const toggleOrbit = document.getElementById('toggleOrbit');
+    const resetBtn = document.getElementById('resetViewBtn');
+
+    speedSlider.addEventListener('input', (e) => {
+      speedFactor = parseFloat(e.target.value);
+      speedLabel.textContent = speedFactor.toFixed(1) + 'x';
+    });
+
+    toggleRotation.addEventListener('change', (e) => {
+      autoRotateEarth = e.target.checked;
+    });
+
+    toggleOrbit.addEventListener('change', (e) => {
+      autoOrbit = e.target.checked;
+    });
+
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(8, 5, 12);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+
+    window.addEventListener('resize', onWindowResize, false);
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // --- 动画循环 ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 公转：更新轨道角度
+      if (autoOrbit) {
+        orbitAngle += 0.004 * speedFactor;
+      }
+
+      // 计算地球在轨道上的位置：春分 (+X), 夏至 (+Z), 秋分 (-X), 冬至 (-Z)
+      const x = Math.cos(orbitAngle) * radiusX;
+      const z = Math.sin(orbitAngle) * radiusZ;
+      earthOrbitGroup.position.set(x, 0, z);
+
+      // 关键：地轴指向固定（指向同一空间方向）
+      // 由于 earthGroup 的 rotation.x 和 rotation.z 固定，我们只需要让 earthGroup.rotation.y 与公转反向
+      // 使得地轴在空间中始终指向同一方向（即 -Z 方向 或 +Z 方向，取决于初始设定）
+      // 初始地轴在空间中的指向：earthGroup.rotation.x = 23.5°, rotation.z = -0.1
+      // 为了保持指向固定，earthGroup.rotation.y = -orbitAngle
+      earthGroup.rotation.y = -orbitAngle;
+
+      // 自转：地球本体和云层绕自身Y轴旋转（在 earthGroup 内部）
+      if (autoRotateEarth) {
+        earth.rotation.y += 0.01 * speedFactor * 1.2;
+        clouds.rotation.y += 0.012 * speedFactor * 1.2;
+      }
+
+      // 星星缓慢旋转
+      stars.rotation.y += 0.00006;
+      glow.rotation.y += 0.001;
+
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+
+    animate();
+
+    console.log('🌍 地球运动交互已启动 — 新全真 ©2026 璧山中学电子科教与融媒体发展中心');
+    console.log('二分二至位置：春分(+X), 夏至(+Z), 秋分(-X), 冬至(-Z) 地轴指向固定');
+  </script>
+</body>
+</html>

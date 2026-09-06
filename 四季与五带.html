@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>四季五带 · 动态教学</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', 'PingFang SC', sans-serif; background: #0a0a1a; color: white; }
+        #info {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+            padding: 14px 24px; border-radius: 40px;
+            border-left: 4px solid #ff8844;
+            pointer-events: none; z-index: 10;
+        }
+        #info h1 { margin: 0; font-size: 1.5rem; font-weight: 500; letter-spacing: 2px; color: #fff6e5; }
+        #info h1 span { color: #ff8844; font-weight: 700; margin-right: 6px; }
+        #info .sub { font-size: 0.75rem; opacity: 0.7; letter-spacing: 1px; margin-top: 4px; }
+        
+        #controls-panel {
+            position: absolute; bottom: 30px; left: 0; right: 0;
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 30px;
+            background: rgba(10, 10, 25, 0.7); backdrop-filter: blur(8px);
+            padding: 18px 28px; border-radius: 60px;
+            max-width: 600px; margin: 0 auto;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            z-index: 20; pointer-events: auto;
+        }
+        .control-group {
+            display: flex; align-items: center; gap: 10px;
+            color: #d0d9ff; font-size: 0.85rem;
+        }
+        .control-group input[type="range"] {
+            width: 100px; height: 4px; background: #3a4a8c; border-radius: 10px;
+            -webkit-appearance: none; appearance: none; outline: none;
+        }
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #ff8844; cursor: pointer;
+            box-shadow: 0 0 12px #ff8844aa; border: 1px solid #fff5;
+        }
+        .control-group label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .control-group input[type="checkbox"] {
+            width: 18px; height: 18px; accent-color: #ff8844; transform: scale(1.1); cursor: pointer;
+        }
+        .btn-reset {
+            background: #2a3a7a; border: none; color: white;
+            padding: 6px 18px; border-radius: 30px; font-size: 0.8rem;
+            cursor: pointer; transition: 0.2s;
+            border: 1px solid #4a6aaa;
+        }
+        .btn-reset:hover { background: #3a5a9a; box-shadow: 0 0 16px #3a5aaa66; transform: scale(1.02); }
+
+        #legend {
+            position: absolute; bottom: 100px; right: 20px;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            padding: 10px 16px; border-radius: 30px;
+            font-size: 0.7rem; color: #aab8ff;
+            border: 1px solid #2a3a7a;
+            pointer-events: none; z-index: 15;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .color-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+
+        #knowledge-panel {
+            position: absolute; bottom: 100px; left: 20px;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(6px);
+            padding: 14px 20px; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            max-width: 300px; font-size: 0.7rem; line-height: 1.6;
+            color: #ccd9ff; pointer-events: none; z-index: 15;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+        #knowledge-panel .title {
+            color: #ff8844; font-weight: 600; letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255,136,68,0.2); padding-bottom: 4px; margin-bottom: 6px;
+        }
+        #knowledge-panel .highlight { color: #ff8844; font-weight: 500; }
+
+        #direct-svg-container {
+            position: absolute;
+            bottom: 340px;
+            left: 20px;
+            width: 200px;
+            height: 130px;
+            pointer-events: none;
+            z-index: 16;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            border-radius: 16px;
+            border: 1px solid rgba(255,68,0,0.2);
+            padding: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        }
+        #direct-svg-container svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #direct-svg-container .label {
+            position: absolute;
+            top: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #ff4400;
+            opacity: 0.8;
+            white-space: nowrap;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        /* ===== 温度带弹窗 ===== */
+        #climate-popup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 15, 40, 0.92);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 136, 68, 0.3);
+            border-radius: 24px;
+            padding: 28px 36px;
+            max-width: 360px;
+            min-width: 240px;
+            z-index: 100;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 136, 68, 0.05);
+            pointer-events: auto;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.92);
+            display: none;
+        }
+        #climate-popup.active {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            display: block;
+        }
+        #climate-popup .popup-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ff8844;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #climate-popup .popup-title .close-btn {
+            margin-left: auto;
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: #aab8ff;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+        #climate-popup .popup-title .close-btn:hover {
+            background: rgba(255, 68, 68, 0.25);
+            color: #ff6688;
+        }
+        #climate-popup .popup-sub {
+            font-size: 0.85rem;
+            color: #88ddff;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        #climate-popup .popup-body {
+            font-size: 0.78rem;
+            line-height: 1.7;
+            color: #ccd9ff;
+        }
+        #climate-popup .popup-body .tag {
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.7rem;
+            margin: 4px 0 6px 0;
+        }
+        #climate-popup .popup-body .tag.tropical { background: #ff440033; color: #ff8844; border: 1px solid #ff884466; }
+        #climate-popup .popup-body .tag.temperate { background: #44bbff33; color: #66ddff; border: 1px solid #66ddff66; }
+        #climate-popup .popup-body .tag.frigid { background: #88ddff22; color: #aaccff; border: 1px solid #88ddff44; }
+        #climate-popup .popup-body .desc { margin-top: 6px; opacity: 0.8; font-size: 0.7rem; }
+
+        #climate-popup-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 99;
+            pointer-events: auto;
+            display: none;
+        }
+        #climate-popup-overlay.active {
+            display: block;
+        }
+
+        @media (max-width: 700px) {
+            #controls-panel { flex-direction: column; align-items: center; gap: 12px; border-radius: 30px; padding: 16px 20px; max-width: 94%; bottom: 16px; }
+            .control-group { width: 100%; justify-content: center; flex-wrap: wrap; }
+            #info { top: 12px; left: 12px; padding: 8px 16px; }
+            #info h1 { font-size: 1.2rem; }
+            #legend { bottom: 170px; right: 10px; padding: 6px 12px; font-size: 0.6rem; }
+            #knowledge-panel { bottom: 140px; left: 10px; max-width: 200px; padding: 10px 14px; font-size: 0.6rem; }
+            #direct-svg-container { bottom: 280px; left: 10px; width: 140px; height: 90px; }
+            #direct-svg-container .label { font-size: 8px; }
+            #climate-popup { max-width: 280px; padding: 20px 24px; min-width: 180px; }
+            #climate-popup .popup-title { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1><span>🌍</span> 四季五带 · 动态教学</h1>
+        <div class="sub">地轴倾斜23.5° · 回归线 · 极圈 · 直射点动态</div>
+    </div>
+
+    <div id="legend">
+        <div class="legend-item"><span class="color-dot" style="background:#ffaa44;"></span> 太阳</div>
+        <div class="legend-item"><span class="color-dot" style="background:#3a8cff;"></span> 地球</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ffff44;"></span> 光线</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ff8844;"></span> 回归线 / 极圈</div>
+    </div>
+
+    <div id="direct-svg-container">
+        <div class="label">☀️ 直射点纬度</div>
+        <svg viewBox="0 0 200 130" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="70" r="40" fill="none" stroke="#3a8cff" stroke-width="1.5" opacity="0.6"/>
+            <line x1="60" y1="70" x2="140" y2="70" stroke="#ffaa44" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+            <line x1="100" y1="20" x2="100" y2="120" stroke="#88ddff" stroke-width="1.2" opacity="0.5"/>
+            <line x1="68" y1="53" x2="132" y2="53" stroke="#ff8844" stroke-width="0.8" opacity="0.3" stroke-dasharray="2,2"/>
+            <line x1="68" y1="87" x2="132" y2="87" stroke="#ff8844" stroke-width="0.8" opacity="0.3" stroke-dasharray="2,2"/>
+            <line x1="72" y1="28" x2="128" y2="28" stroke="#88ddff" stroke-width="0.6" opacity="0.2" stroke-dasharray="2,2"/>
+            <line x1="72" y1="112" x2="128" y2="112" stroke="#88ddff" stroke-width="0.6" opacity="0.2" stroke-dasharray="2,2"/>
+            <circle id="direct-dot" cx="100" cy="70" r="5" fill="#ff4400" opacity="0.9"/>
+            <circle id="direct-glow" cx="100" cy="70" r="10" fill="#ff4400" opacity="0.2"/>
+            <line id="direct-line" x1="100" y1="10" x2="100" y2="30" stroke="#ffff44" stroke-width="1.5" opacity="0.6"/>
+            <text x="100" y="125" text-anchor="middle" font-size="8" fill="#88ddff" opacity="0.5">赤道</text>
+            <text x="142" y="55" text-anchor="start" font-size="6" fill="#ff8844" opacity="0.4">23.5°N</text>
+            <text x="142" y="89" text-anchor="start" font-size="6" fill="#ff8844" opacity="0.4">23.5°S</text>
+            <text x="140" y="30" text-anchor="start" font-size="5" fill="#88ddff" opacity="0.3">66.5°N</text>
+            <text x="140" y="114" text-anchor="start" font-size="5" fill="#88ddff" opacity="0.3">66.5°S</text>
+        </svg>
+    </div>
+
+    <div id="knowledge-panel">
+        <div class="title">🌐 四季五带 · 核心要点</div>
+        <div>
+            <span class="highlight">🌞 直射点</span> 在 23.5°N ~ 23.5°S 之间回归运动。<br>
+            <span class="highlight">❄️ 五带</span> 由回归线和极圈划分：<br>
+            · 热带 (23.5°N ~ 23.5°S)<br>
+            · 温带 (23.5° ~ 66.5° 南北)<br>
+            · 寒带 (66.5° ~ 90° 南北)<br>
+            <span style="opacity:0.6; font-size:0.6rem;">黄赤交角 23.5° → 回归线 23.5° · 极圈 66.5°</span>
+        </div>
+        <div style="margin-top:4px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px; font-size:0.6rem; opacity:0.7;">
+            🛰️ 卫星实拍纹理 · 全彩轮廓
+        </div>
+        <div style="margin-top:2px; font-size:0.55rem; opacity:0.5;">
+            ©2026 璧山中学电子科教与融媒体发展中心
+        </div>
+    </div>
+
+    <div id="controls-panel">
+        <div class="control-group">
+            <span>⏵ 公转速度</span>
+            <input type="range" id="orbitSpeed" min="0.0" max="2.0" step="0.05" value="0.5">
+            <span id="speedLabel">0.5x</span>
+        </div>
+        <div class="control-group">
+            <label><input type="checkbox" id="showRays" checked> 光线</label>
+            <label><input type="checkbox" id="showLabels" checked> 标注</label>
+        </div>
+        <div class="control-group">
+            <button class="btn-reset" id="resetViewBtn">⟲ 重置视角</button>
+        </div>
+    </div>
+
+    <!-- 温度带弹窗 -->
+    <div id="climate-popup-overlay"></div>
+    <div id="climate-popup">
+        <div class="popup-title">
+            <span id="popup-lat-label">🌐 赤道</span>
+            <button class="close-btn" id="popup-close">✕</button>
+        </div>
+        <div class="popup-sub" id="popup-zone-name">热带</div>
+        <div class="popup-body">
+            <div><span class="tag" id="popup-tag">热带</span></div>
+            <div class="desc" id="popup-desc">太阳直射，终年高温</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+
+        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(10, 6, 14);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.left = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 5;
+        controls.maxDistance = 30;
+        controls.target.set(0, 0, 0);
+
+        const ambient = new THREE.AmbientLight(0x4488aa, 0.6);
+        scene.add(ambient);
+        const mainLight = new THREE.DirectionalLight(0xffeedd, 1.0);
+        mainLight.position.set(5, 3, 5);
+        scene.add(mainLight);
+        const fillLight = new THREE.DirectionalLight(0x88bbff, 0.4);
+        fillLight.position.set(-3, 1, -3);
+        scene.add(fillLight);
+
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 2500;
+        const pos = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            const r = 30 + Math.random() * 30;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            pos[i] = Math.sin(phi) * Math.cos(theta) * r;
+            pos[i+1] = Math.sin(phi) * Math.sin(theta) * r;
+            pos[i+2] = Math.cos(phi) * r;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+        const stars = new THREE.Points(starsGeo, starsMat);
+        scene.add(stars);
+
+        const sunGroup = new THREE.Group();
+        scene.add(sunGroup);
+        const sunDist = 7.0;
+
+        const sunGeo = new THREE.SphereGeometry(0.9, 32, 32);
+        const sunMat = new THREE.MeshStandardMaterial({
+            color: 0xffaa44,
+            emissive: 0xff5500,
+            emissiveIntensity: 1.5,
+        });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        sunGroup.add(sunMesh);
+
+        const glowGeo = new THREE.BufferGeometry();
+        const glowCount = 150;
+        const glowPos = new Float32Array(glowCount * 3);
+        for (let i = 0; i < glowCount; i++) {
+            const r = 1.0 + Math.random() * 0.6;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+            glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+            glowPos[i*3+2] = Math.cos(phi) * r;
+        }
+        glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+        const glowMat = new THREE.PointsMaterial({
+            color: 0xffaa33, size: 0.08,
+            transparent: true, blending: THREE.AdditiveBlending
+        });
+        const glow = new THREE.Points(glowGeo, glowMat);
+        sunGroup.add(glow);
+
+        const sunLabelDiv = document.createElement('div');
+        sunLabelDiv.textContent = '☀️ 太阳';
+        sunLabelDiv.style.color = '#ffaa44';
+        sunLabelDiv.style.fontSize = '16px';
+        sunLabelDiv.style.fontWeight = 'bold';
+        sunLabelDiv.style.textShadow = '0 0 20px #ff8800';
+        const sunLabel = new CSS2DObject(sunLabelDiv);
+        sunLabel.position.set(0, 1.6, 0);
+        sunGroup.add(sunLabel);
+
+        const orbitPoints = [];
+        for (let i = 0; i <= 128; i++) {
+            const a = (i / 128) * Math.PI * 2;
+            orbitPoints.push(new THREE.Vector3(Math.cos(a) * sunDist, 0, Math.sin(a) * sunDist));
+        }
+        const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+        const orbitMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.15, transparent: true });
+        const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+        scene.add(orbitLine);
+
+        const markPositions = [
+            { angle: 0, label: '春分' },
+            { angle: Math.PI/2, label: '夏至' },
+            { angle: Math.PI, label: '秋分' },
+            { angle: 3*Math.PI/2, label: '冬至' }
+        ];
+        markPositions.forEach(({ angle, label }) => {
+            const x = Math.cos(angle) * sunDist;
+            const z = Math.sin(angle) * sunDist;
+            const div = document.createElement('div');
+            div.textContent = label;
+            div.style.color = '#88ddff';
+            div.style.fontSize = '12px';
+            div.style.opacity = '0.5';
+            div.style.textShadow = '0 0 8px #000';
+            const obj = new CSS2DObject(div);
+            obj.position.set(x, -0.8, z);
+            scene.add(obj);
+        });
+
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+        earthGroup.rotation.x = 23.5 * Math.PI / 180;
+
+        const textureLoader = new THREE.TextureLoader();
+        const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+        const cloudTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+
+        const earthGeo = new THREE.SphereGeometry(2.2, 96, 96);
+        const earthMat = new THREE.MeshPhongMaterial({
+            map: mapTex,
+            shininess: 8,
+            specular: new THREE.Color(0x224466),
+            emissive: new THREE.Color(0x001122),
+            emissiveIntensity: 0.05
+        });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        earthGroup.add(earth);
+
+        const cloudGeo = new THREE.SphereGeometry(2.23, 64, 64);
+        const cloudMat = new THREE.MeshPhongMaterial({
+            map: cloudTex,
+            transparent: true,
+            opacity: 0.12,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+        const clouds = new THREE.Mesh(cloudGeo, cloudMat);
+        earthGroup.add(clouds);
+
+        const labelDiv = document.createElement('div');
+        labelDiv.textContent = '🌍 地球';
+        labelDiv.style.color = '#88ddff';
+        labelDiv.style.fontSize = '16px';
+        labelDiv.style.fontWeight = 'bold';
+        labelDiv.style.textShadow = '0 0 16px #2266cc';
+        const label = new CSS2DObject(labelDiv);
+        label.position.set(0, 2.8, 0);
+        earthGroup.add(label);
+
+        const axisGroup = new THREE.Group();
+        const axisLength = 2.6;
+        const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.7, transparent: true });
+        const axisPoints = [
+            new THREE.Vector3(0, -axisLength, 0),
+            new THREE.Vector3(0, axisLength, 0)
+        ];
+        const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+        const axisLine = new THREE.Line(axisGeo, axisMat);
+        axisGroup.add(axisLine);
+        const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+        const capGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        const capTop = new THREE.Mesh(capGeo, capMat);
+        capTop.position.set(0, axisLength, 0);
+        axisGroup.add(capTop);
+        const capBottom = new THREE.Mesh(capGeo, capMat);
+        capBottom.position.set(0, -axisLength, 0);
+        axisGroup.add(capBottom);
+        const nLabelDiv = document.createElement('div');
+        nLabelDiv.textContent = 'N';
+        nLabelDiv.style.color = '#88ddff';
+        nLabelDiv.style.fontSize = '14px';
+        nLabelDiv.style.fontWeight = 'bold';
+        nLabelDiv.style.textShadow = '0 0 12px #2266aa';
+        const nLabel = new CSS2DObject(nLabelDiv);
+        nLabel.position.set(0, axisLength + 0.3, 0);
+        axisGroup.add(nLabel);
+        earthGroup.add(axisGroup);
+
+        const labelGroup = new THREE.Group();
+        earthGroup.add(labelGroup);
+
+        const R = 2.25;
+
+        // ----- 温度带数据 -----
+        const zoneData = {
+            '赤道': { zone: '热带', tag: 'tropical', desc: '太阳直射，终年高温，昼夜变化小', color: '#ff8844' },
+            '23.5°N': { zone: '热带/亚热带过渡带', tag: 'tropical', desc: '北回归线，太阳直射的最北界，热带与温带分界', color: '#ff8844' },
+            '23.5°S': { zone: '热带/亚热带过渡带', tag: 'tropical', desc: '南回归线，太阳直射的最南界，热带与温带分界', color: '#ff8844' },
+            '66.5°N': { zone: '北温带 / 北寒带分界', tag: 'frigid', desc: '北极圈，极昼极夜现象的最南界，温带与寒带分界', color: '#88ddff' },
+            '66.5°S': { zone: '南温带 / 南寒带分界', tag: 'frigid', desc: '南极圈，极昼极夜现象的最北界，温带与寒带分界', color: '#88ddff' },
+        };
+
+        // 存储所有纬线标签对象，用于绑定点击
+        const latLabelObjects = [];
+
+        function makeLatCircle(latDeg, color, opacity, labelText, labelOffset) {
+            const latRad = latDeg * Math.PI / 180;
+            const r = R * Math.cos(latRad);
+            const y = R * Math.sin(latRad);
+            const pts = [];
+            const segments = 64;
+            for (let i = 0; i <= segments; i++) {
+                const a = (i / segments) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+            const line = new THREE.Line(geo, mat);
+            labelGroup.add(line);
+
+            if (labelText) {
+                const div = document.createElement('div');
+                div.textContent = labelText;
+                div.style.color = '#fff';
+                div.style.fontSize = '10px';
+                div.style.fontWeight = '400';
+                div.style.textShadow = '0 0 8px #000, 0 0 12px #000';
+                div.style.background = 'rgba(0,0,0,0.3)';
+                div.style.padding = '1px 4px';
+                div.style.borderRadius = '4px';
+                div.style.border = '1px solid rgba(255,255,255,0.1)';
+                div.style.cursor = 'pointer';
+                div.style.pointerEvents = 'auto';
+                div.style.transition = '0.15s';
+                div.dataset.lat = labelText;
+
+                // 悬停效果
+                div.addEventListener('mouseenter', () => {
+                    div.style.background = 'rgba(255,136,68,0.3)';
+                    div.style.border = '1px solid #ff884488';
+                });
+                div.addEventListener('mouseleave', () => {
+                    div.style.background = 'rgba(0,0,0,0.3)';
+                    div.style.border = '1px solid rgba(255,255,255,0.1)';
+                });
+
+                // ---- 点击弹出温度带 ----
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showClimatePopup(labelText);
+                });
+
+                const obj = new CSS2DObject(div);
+                const offset = labelOffset || 0.3;
+                obj.position.set(r + offset, y, 0);
+                labelGroup.add(obj);
+                latLabelObjects.push(obj);
+            }
+        }
+
+        function makeLatCircleBack(latDeg, color, opacity, labelText, labelOffset) {
+            const latRad = latDeg * Math.PI / 180;
+            const r = R * Math.cos(latRad);
+            const y = R * Math.sin(latRad);
+            if (labelText) {
+                const div = document.createElement('div');
+                div.textContent = labelText;
+                div.style.color = '#fff';
+                div.style.fontSize = '10px';
+                div.style.fontWeight = '400';
+                div.style.textShadow = '0 0 8px #000, 0 0 12px #000';
+                div.style.background = 'rgba(0,0,0,0.3)';
+                div.style.padding = '1px 4px';
+                div.style.borderRadius = '4px';
+                div.style.border = '1px solid rgba(255,255,255,0.1)';
+                div.style.cursor = 'pointer';
+                div.style.pointerEvents = 'auto';
+                div.style.transition = '0.15s';
+                div.dataset.lat = labelText;
+
+                div.addEventListener('mouseenter', () => {
+                    div.style.background = 'rgba(255,136,68,0.3)';
+                    div.style.border = '1px solid #ff884488';
+                });
+                div.addEventListener('mouseleave', () => {
+                    div.style.background = 'rgba(0,0,0,0.3)';
+                    div.style.border = '1px solid rgba(255,255,255,0.1)';
+                });
+
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showClimatePopup(labelText);
+                });
+
+                const obj = new CSS2DObject(div);
+                const offset = labelOffset || 0.3;
+                obj.position.set(-(r + offset), y, 0);
+                labelGroup.add(obj);
+                latLabelObjects.push(obj);
+            }
+        }
+
+        // 绘制纬线
+        makeLatCircle(0, 0xffaa44, 0.5, '赤道', 0.4);
+        makeLatCircle(23.5, 0xff8844, 0.6, '23.5°N', 0.5);
+        makeLatCircle(-23.5, 0xff8844, 0.6, '23.5°S', 0.5);
+        makeLatCircle(66.5, 0x88ddff, 0.4, '66.5°N', 0.5);
+        makeLatCircle(-66.5, 0x88ddff, 0.4, '66.5°S', 0.5);
+
+        makeLatCircleBack(23.5, 0xff8844, 0, '23.5°N', 0.5);
+        makeLatCircleBack(-23.5, 0xff8844, 0, '23.5°S', 0.5);
+        makeLatCircleBack(66.5, 0x88ddff, 0, '66.5°N', 0.5);
+        makeLatCircleBack(-66.5, 0x88ddff, 0, '66.5°S', 0.5);
+
+        // ----- 弹窗控制 -----
+        const popup = document.getElementById('climate-popup');
+        const overlay = document.getElementById('climate-popup-overlay');
+        const closeBtn = document.getElementById('popup-close');
+        const popupLatLabel = document.getElementById('popup-lat-label');
+        const popupZoneName = document.getElementById('popup-zone-name');
+        const popupTag = document.getElementById('popup-tag');
+        const popupDesc = document.getElementById('popup-desc');
+
+        function showClimatePopup(latText) {
+            const data = zoneData[latText];
+            if (!data) return;
+
+            popupLatLabel.textContent = `📍 ${latText}`;
+            popupZoneName.textContent = data.zone;
+            popupTag.textContent = data.zone;
+            popupTag.className = 'tag ' + data.tag;
+            popupDesc.textContent = data.desc;
+
+            popup.classList.add('active');
+            overlay.classList.add('active');
+        }
+
+        function hideClimatePopup() {
+            popup.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        closeBtn.addEventListener('click', hideClimatePopup);
+        overlay.addEventListener('click', hideClimatePopup);
+
+        // 按 ESC 关闭
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') hideClimatePopup();
+        });
+
+        // 光线系统
+        const rayGroup = new THREE.Group();
+        scene.add(rayGroup);
+
+        const rayCount = 18;
+        for (let i = 0; i < rayCount; i++) {
+            const geo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, 0)
+            ]);
+            const mat = new THREE.LineBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.08 + Math.random() * 0.06
+            });
+            const line = new THREE.Line(geo, mat);
+            rayGroup.add(line);
+        }
+
+        const directRayMat = new THREE.LineBasicMaterial({ color: 0xff4400, opacity: 0.9, transparent: true });
+        const directRayGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, 0)
+        ]);
+        const directRay = new THREE.Line(directRayGeo, directRayMat);
+        rayGroup.add(directRay);
+
+        const spotMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+        const spotGeo = new THREE.SphereGeometry(0.18, 8, 8);
+        const spot = new THREE.Mesh(spotGeo, spotMat);
+        earthGroup.add(spot);
+        const glowSpotMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.15 });
+        const glowSpotGeo = new THREE.SphereGeometry(0.4, 8, 8);
+        const glowSpot = new THREE.Mesh(glowSpotGeo, glowSpotMat);
+        earthGroup.add(glowSpot);
+
+        let orbitAngle = 0;
+        let speedFactor = 0.5;
+        let showRays = true;
+        let showLabels = true;
+
+        const speedSlider = document.getElementById('orbitSpeed');
+        const speedLabel = document.getElementById('speedLabel');
+        const toggleRays = document.getElementById('showRays');
+        const toggleLabels = document.getElementById('showLabels');
+        const resetBtn = document.getElementById('resetViewBtn');
+
+        speedSlider.addEventListener('input', (e) => {
+            speedFactor = parseFloat(e.target.value);
+            speedLabel.textContent = speedFactor.toFixed(1) + 'x';
+        });
+
+        toggleRays.addEventListener('change', (e) => {
+            showRays = e.target.checked;
+            rayGroup.visible = showRays;
+        });
+
+        toggleLabels.addEventListener('change', (e) => {
+            showLabels = e.target.checked;
+            labelGroup.visible = showLabels;
+        });
+
+        resetBtn.addEventListener('click', () => {
+            camera.position.set(10, 6, 14);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function updateDirectSVG(latDeg) {
+            const cx = 100, cy = 70, radius = 40;
+            const yPos = cy - (latDeg / 23.5) * radius;
+            const clampedY = Math.max(cy - radius, Math.min(cy + radius, yPos));
+            
+            const dot = document.getElementById('direct-dot');
+            const glow = document.getElementById('direct-glow');
+            const line = document.getElementById('direct-line');
+            
+            if (dot) dot.setAttribute('cy', clampedY);
+            if (glow) glow.setAttribute('cy', clampedY);
+            if (line) {
+                line.setAttribute('x1', cx);
+                line.setAttribute('y1', 10);
+                line.setAttribute('x2', cx);
+                line.setAttribute('y2', clampedY - 5);
+            }
+        }
+
+        function updateScene(angle) {
+            const sx = Math.cos(angle) * sunDist;
+            const sz = Math.sin(angle) * sunDist;
+            sunGroup.position.set(sx, 0, sz);
+
+            const lightDir = new THREE.Vector3(sx, 0, sz).normalize();
+
+            const localLightDir = lightDir.clone().applyQuaternion(
+                new THREE.Quaternion().copy(earthGroup.quaternion).invert()
+            );
+            const hitPointLocal = localLightDir.clone().multiplyScalar(2.25);
+            spot.position.copy(hitPointLocal);
+            glowSpot.position.copy(hitPointLocal);
+
+            const latRad = Math.asin(Math.max(-1, Math.min(1, hitPointLocal.y / 2.25)));
+            const latDeg = latRad * 180 / Math.PI;
+            updateDirectSVG(latDeg);
+
+            rayGroup.children.forEach(child => {
+                if (child.isLine) {
+                    const positions = child.geometry.attributes.position.array;
+                    if (child === directRay) {
+                        const hitWorld = hitPointLocal.clone().applyQuaternion(earthGroup.quaternion);
+                        positions[0] = sx; positions[1] = 0; positions[2] = sz;
+                        positions[3] = hitWorld.x; positions[4] = hitWorld.y; positions[5] = hitWorld.z;
+                    } else {
+                        const offsetX = (Math.random() - 0.5) * 1.8;
+                        const offsetZ = (Math.random() - 0.5) * 1.8;
+                        const startX = sx + offsetX * 0.4;
+                        const startZ = sz + offsetZ * 0.4;
+                        const endX = 0 + offsetX * 0.4;
+                        const endZ = 0 + offsetZ * 0.4;
+                        positions[0] = startX; positions[1] = (Math.random() - 0.5) * 0.8; positions[2] = startZ;
+                        positions[3] = endX; positions[4] = (Math.random() - 0.5) * 0.8; positions[5] = endZ;
+                    }
+                    child.geometry.attributes.position.needsUpdate = true;
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            orbitAngle += 0.003 * speedFactor;
+            if (orbitAngle > Math.PI * 2) orbitAngle -= Math.PI * 2;
+
+            updateScene(orbitAngle);
+
+            clouds.rotation.y += 0.0008 * speedFactor;
+            stars.rotation.y += 0.00008;
+
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        updateScene(0);
+        animate();
+
+        console.log('🌍 四季五带·动态教学已启动 ©2026 璧山中学');
+        console.log('📌 点击任意纬线标签查看温度带信息');
+    </script>
+</body>
+</html>

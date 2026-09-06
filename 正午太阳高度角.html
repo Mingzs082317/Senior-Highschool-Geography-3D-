@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D 正午太阳高度角 · 二分二至</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #080c1a;
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+            color: #e8eeff;
+            overflow: hidden;
+            height: 100vh;
+            user-select: none;
+        }
+        #canvas-wrap {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        /* ===== 左下角知识面板 ===== */
+        #knowledge-panel {
+            position: absolute;
+            bottom: 100px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(6px);
+            padding: 14px 20px;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            max-width: 280px;
+            font-size: 0.7rem;
+            line-height: 1.6;
+            color: #ccd9ff;
+            pointer-events: none;
+            z-index: 15;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+        #knowledge-panel .title {
+            color: #66ddff;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(102, 221, 255, 0.2);
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+        #knowledge-panel .highlight {
+            color: #66ddff;
+            font-weight: 500;
+        }
+        #knowledge-panel .highlight-orange {
+            color: #ff8844;
+            font-weight: 500;
+        }
+        #knowledge-panel .copyright {
+            margin-top: 6px;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.55rem;
+            opacity: 0.4;
+            text-align: center;
+        }
+
+        /* ===== 右下角图例 ===== */
+        #legend {
+            position: absolute;
+            bottom: 110px;
+            right: 24px;
+            background: rgba(10, 16, 36, 0.8);
+            backdrop-filter: blur(8px);
+            border-radius: 16px;
+            padding: 14px 18px;
+            border: 1px solid rgba(255,255,255,0.06);
+            z-index: 15;
+            pointer-events: none;
+            font-size: 0.75rem;
+            line-height: 1.9;
+            min-width: 130px;
+        }
+        #legend .title {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.4;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 4px;
+            margin-bottom: 4px;
+        }
+        #legend .item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #legend .dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #legend .dot.green { background: #44ff88; box-shadow: 0 0 8px #44ff8844; }
+        #legend .dot.red { background: #ff4400; box-shadow: 0 0 8px #ff440044; }
+        #legend .dot.blue { background: #66ddff; box-shadow: 0 0 8px #66ddff44; width: 20px; height: 4px; border-radius: 4px; border: none; }
+        #legend .dot.yellow { background: #ffdd44; box-shadow: 0 0 8px #ffdd4444; width: 20px; height: 3px; border-radius: 2px; border: none; }
+        #legend .dot.orange { background: #ff8844; box-shadow: 0 0 8px #ff884444; width: 20px; height: 3px; border-radius: 2px; border: none; }
+        #legend .label { opacity: 0.7; font-size: 0.7rem; }
+
+        /* ===== 控制面板 ===== */
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 16, 36, 0.88);
+            backdrop-filter: blur(12px);
+            border-radius: 60px;
+            padding: 14px 28px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 16px 24px;
+            z-index: 20;
+            pointer-events: auto;
+            max-width: 94%;
+        }
+        #controls .group {
+            display: flex;
+            align-items: center;
+            gap: 8px 12px;
+            flex-wrap: wrap;
+            font-size: 0.8rem;
+        }
+        #controls .group label {
+            opacity: 0.6;
+            font-size: 0.75rem;
+        }
+        #controls input[type="range"] {
+            width: 120px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: #2a3a7a;
+            border-radius: 10px;
+            outline: none;
+        }
+        #controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ff8844;
+            cursor: pointer;
+            box-shadow: 0 0 16px #ff884466;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #controls .val {
+            min-width: 44px;
+            text-align: center;
+            color: #ff8844;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .preset-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #aab8ff;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .preset-btn:hover {
+            background: rgba(255,136,68,0.2);
+            border-color: #ff884466;
+            color: #fff;
+        }
+        .preset-btn.active {
+            background: rgba(255,136,68,0.25);
+            border-color: #ff8844;
+            color: #ff8844;
+            box-shadow: 0 0 20px rgba(255,136,68,0.08);
+        }
+        .season-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #88aaff;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        .season-btn.active {
+            background: rgba(255,136,68,0.25);
+            border-color: #ff8844;
+            color: #ff8844;
+            box-shadow: 0 0 20px rgba(255,136,68,0.08);
+        }
+        .season-btn:hover {
+            background: rgba(255,136,68,0.15);
+        }
+
+        /* ===== 右上角信息面板 ===== */
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            background: rgba(10, 16, 36, 0.75);
+            backdrop-filter: blur(8px);
+            border-radius: 20px;
+            padding: 16px 22px;
+            border: 1px solid rgba(255,255,255,0.05);
+            min-width: 180px;
+            z-index: 15;
+            pointer-events: none;
+            line-height: 1.8;
+            font-size: 0.85rem;
+        }
+        #info-panel .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        #info-panel .label {
+            opacity: 0.5;
+        }
+        #info-panel .value {
+            color: #ff8844;
+            font-weight: 600;
+        }
+        #info-panel .value.highlight {
+            color: #66ddff;
+        }
+        #info-panel .formula {
+            font-family: 'Courier New', monospace;
+            color: #88aaff;
+            opacity: 0.6;
+            font-size: 0.75rem;
+            margin-top: 4px;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 6px;
+        }
+
+        /* ===== 标题 ===== */
+        .title-top {
+            position: absolute;
+            top: 20px;
+            left: 24px;
+            z-index: 15;
+            pointer-events: none;
+        }
+        .title-top h1 {
+            font-size: 1.3rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+        .title-top h1 span {
+            color: #ff8844;
+        }
+        .title-top .sub {
+            font-size: 0.7rem;
+            opacity: 0.4;
+            letter-spacing: 1px;
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 700px) {
+            #controls { padding: 12px 16px; border-radius: 30px; bottom: 16px; flex-direction: column; gap: 8px; }
+            #controls .group { justify-content: center; width: 100%; }
+            #controls input[type="range"] { width: 100px; }
+            #info-panel { top: 12px; right: 12px; padding: 10px 14px; font-size: 0.7rem; min-width: 140px; }
+            .title-top { top: 12px; left: 14px; }
+            .title-top h1 { font-size: 1rem; }
+            #legend { bottom: 150px; right: 12px; padding: 10px 14px; font-size: 0.65rem; min-width: 100px; }
+            #legend .dot { width: 12px; height: 12px; }
+            #knowledge-panel { bottom: 140px; left: 10px; max-width: 200px; padding: 10px 14px; font-size: 0.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 标题 ===== -->
+    <div class="title-top">
+        <h1>☀️ <span>正午太阳高度角</span> · 3D</h1>
+        <div class="sub">二分二至 · 纬线推断</div>
+    </div>
+
+    <!-- ===== 右上角信息面板 ===== -->
+    <div id="info-panel">
+        <div class="row"><span class="label">🌞 直射纬度</span><span class="value" id="deltaDisplay">0°</span></div>
+        <div class="row"><span class="label">📍 当地纬度</span><span class="value" id="latDisplay">30°N</span></div>
+        <div class="row"><span class="label">📐 高度角</span><span class="value highlight" id="angleDisplay">60.0°</span></div>
+        <div class="formula" id="formulaDisplay">H = 90° - |30° - 0°| = 60°</div>
+    </div>
+
+    <!-- ===== 左下角知识面板 ===== -->
+    <div id="knowledge-panel">
+        <div class="title">📐 正午太阳高度角 · 核心要点</div>
+        <div>
+            <span class="highlight">🌞 公式</span> H = 90° − |φ − δ|<br>
+            · <span class="highlight-orange">φ</span> = 当地纬度<br>
+            · <span class="highlight-orange">δ</span> = 太阳直射纬度<br>
+            <span style="opacity:0.6; font-size:0.6rem;">
+                🌱 春分/秋分 δ=0° · ☀️ 夏至 δ=23.5°N · ❄️ 冬至 δ=23.5°S
+            </span>
+        </div>
+        <div style="margin-top:4px; border-top:1px solid rgba(255,255,255,0.06); padding-top:4px; font-size:0.6rem; opacity:0.6;">
+            🖱️ 拖拽旋转 · 滚轮缩放 · 点击纬线跳转
+        </div>
+        <div class="copyright">©2026 璧山中学电子科教与融媒体发展中心</div>
+    </div>
+
+    <!-- ===== 右下角图例 ===== -->
+    <div id="legend">
+        <div class="title">图 例</div>
+        <div class="item"><span class="dot red"></span><span class="label">当地纬度</span></div>
+        <div class="item"><span class="dot green"></span><span class="label">直射点</span></div>
+        <div class="item"><span class="dot blue"></span><span class="label">高度角弧线</span></div>
+        <div class="item"><span class="dot yellow"></span><span class="label">太阳光线</span></div>
+        <div class="item"><span class="dot orange"></span><span class="label">回归线 / 极圈</span></div>
+    </div>
+
+    <!-- ===== 3D 容器 ===== -->
+    <div id="canvas-wrap"></div>
+
+    <!-- ===== 控制面板 ===== -->
+    <div id="controls">
+        <div class="group">
+            <label>📍 纬度 φ</label>
+            <input type="range" id="latSlider" min="-90" max="90" value="30" step="0.5">
+            <span class="val" id="latSliderVal">30°N</span>
+        </div>
+        <div class="group">
+            <button class="preset-btn active" data-lat="30">30°</button>
+            <button class="preset-btn" data-lat="0">赤道</button>
+            <button class="preset-btn" data-lat="23.5">回归线</button>
+            <button class="preset-btn" data-lat="66.5">极圈</button>
+            <button class="preset-btn" data-lat="90">极点</button>
+        </div>
+        <div class="group">
+            <button class="season-btn active" data-delta="0">春分</button>
+            <button class="season-btn" data-delta="23.5">夏至</button>
+            <button class="season-btn" data-delta="0">秋分</button>
+            <button class="season-btn" data-delta="-23.5">冬至</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        const latSlider = document.getElementById('latSlider');
+        const latSliderVal = document.getElementById('latSliderVal');
+        const latDisplay = document.getElementById('latDisplay');
+        const deltaDisplay = document.getElementById('deltaDisplay');
+        const angleDisplay = document.getElementById('angleDisplay');
+        const formulaDisplay = document.getElementById('formulaDisplay');
+
+        let lat = 30;
+        let delta = 0;
+
+        const container = document.getElementById('canvas-wrap');
+        const W = container.clientWidth;
+        const H = container.clientHeight;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x080c1a);
+
+        const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+        camera.position.set(8, 4, 12);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(W, H);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(W, H);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0';
+        labelRenderer.domElement.style.left = '0';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        container.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 5;
+        controls.maxDistance = 30;
+        controls.target.set(0, 0, 0);
+
+        const ambient = new THREE.AmbientLight(0x4488aa, 0.5);
+        scene.add(ambient);
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        mainLight.position.set(5, 3, 5);
+        scene.add(mainLight);
+        const fillLight = new THREE.DirectionalLight(0x88bbff, 0.3);
+        fillLight.position.set(-3, 1, -3);
+        scene.add(fillLight);
+
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 2000;
+        const starPos = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount * 3; i += 3) {
+            const r = 30 + Math.random() * 40;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            starPos[i] = Math.sin(phi) * Math.cos(theta) * r;
+            starPos[i+1] = Math.sin(phi) * Math.sin(theta) * r;
+            starPos[i+2] = Math.cos(phi) * r;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.6 });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+        earthGroup.rotation.x = 23.5 * Math.PI / 180;
+
+        const textureLoader = new THREE.TextureLoader();
+        const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+
+        const earthGeo = new THREE.SphereGeometry(2.5, 96, 96);
+        const earthMat = new THREE.MeshPhongMaterial({
+            map: mapTex,
+            shininess: 10,
+            specular: new THREE.Color(0x224466),
+        });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        earthGroup.add(earth);
+
+        const axisLen = 3.0;
+        const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.5, transparent: true });
+        const axisPts = [new THREE.Vector3(0, -axisLen, 0), new THREE.Vector3(0, axisLen, 0)];
+        const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPts);
+        const axisLine = new THREE.Line(axisGeo, axisMat);
+        earthGroup.add(axisLine);
+        const makeAxisLabel = (text, y) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            div.style.color = '#88ddff';
+            div.style.fontSize = '14px';
+            div.style.fontWeight = 'bold';
+            div.style.textShadow = '0 0 12px #2266aa';
+            const obj = new CSS2DObject(div);
+            obj.position.set(0, y, 0);
+            earthGroup.add(obj);
+        };
+        makeAxisLabel('N', axisLen + 0.4);
+        makeAxisLabel('S', -axisLen - 0.4);
+
+        const R = 2.52;
+        const latLines = [
+            { deg: 0, color: 0xffaa44, label: '赤道' },
+            { deg: 23.5, color: 0xff8844, label: '23.5°N' },
+            { deg: -23.5, color: 0xff8844, label: '23.5°S' },
+            { deg: 66.5, color: 0x88ddff, label: '66.5°N' },
+            { deg: -66.5, color: 0x88ddff, label: '66.5°S' },
+        ];
+
+        const latLineGroup = new THREE.Group();
+        earthGroup.add(latLineGroup);
+
+        latLines.forEach(({ deg, color, label }) => {
+            const rad = deg * Math.PI / 180;
+            const r = R * Math.cos(rad);
+            const y = R * Math.sin(rad);
+            const pts = [];
+            const seg = 64;
+            for (let i = 0; i <= seg; i++) {
+                const a = (i / seg) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 });
+            const line = new THREE.Line(geo, mat);
+            latLineGroup.add(line);
+
+            if (label) {
+                const div = document.createElement('div');
+                div.textContent = label;
+                div.style.color = '#fff';
+                div.style.fontSize = '10px';
+                div.style.background = 'rgba(0,0,0,0.5)';
+                div.style.padding = '2px 8px';
+                div.style.borderRadius = '12px';
+                div.style.border = '1px solid rgba(255,255,255,0.1)';
+                div.style.cursor = 'pointer';
+                div.style.pointerEvents = 'auto';
+                div.style.transition = '0.15s';
+                div.dataset.lat = label;
+                div.addEventListener('mouseenter', () => {
+                    div.style.background = 'rgba(255,136,68,0.35)';
+                    div.style.border = '1px solid #ff884488';
+                });
+                div.addEventListener('mouseleave', () => {
+                    div.style.background = 'rgba(0,0,0,0.5)';
+                    div.style.border = '1px solid rgba(255,255,255,0.1)';
+                });
+                div.addEventListener('click', () => {
+                    let targetLat = 0;
+                    if (label === '赤道') targetLat = 0;
+                    else if (label === '23.5°N') targetLat = 23.5;
+                    else if (label === '23.5°S') targetLat = -23.5;
+                    else if (label === '66.5°N') targetLat = 66.5;
+                    else if (label === '66.5°S') targetLat = -66.5;
+                    latSlider.value = targetLat;
+                    update();
+                    updatePresetButtons(targetLat);
+                });
+                const obj = new CSS2DObject(div);
+                const offset = 0.4;
+                obj.position.set(r + offset, y, 0);
+                latLineGroup.add(obj);
+
+                const div2 = document.createElement('div');
+                div2.textContent = label;
+                div2.style.color = '#fff';
+                div2.style.fontSize = '10px';
+                div2.style.background = 'rgba(0,0,0,0.5)';
+                div2.style.padding = '2px 8px';
+                div2.style.borderRadius = '12px';
+                div2.style.border = '1px solid rgba(255,255,255,0.1)';
+                div2.style.cursor = 'pointer';
+                div2.style.pointerEvents = 'auto';
+                div2.style.transition = '0.15s';
+                div2.dataset.lat = label;
+                div2.addEventListener('mouseenter', () => {
+                    div2.style.background = 'rgba(255,136,68,0.35)';
+                    div2.style.border = '1px solid #ff884488';
+                });
+                div2.addEventListener('mouseleave', () => {
+                    div2.style.background = 'rgba(0,0,0,0.5)';
+                    div2.style.border = '1px solid rgba(255,255,255,0.1)';
+                });
+                div2.addEventListener('click', () => {
+                    let targetLat = 0;
+                    if (label === '赤道') targetLat = 0;
+                    else if (label === '23.5°N') targetLat = 23.5;
+                    else if (label === '23.5°S') targetLat = -23.5;
+                    else if (label === '66.5°N') targetLat = 66.5;
+                    else if (label === '66.5°S') targetLat = -66.5;
+                    latSlider.value = targetLat;
+                    update();
+                    updatePresetButtons(targetLat);
+                });
+                const obj2 = new CSS2DObject(div2);
+                obj2.position.set(-(r + offset), y, 0);
+                latLineGroup.add(obj2);
+            }
+        });
+
+        const rayGroup = new THREE.Group();
+        scene.add(rayGroup);
+
+        const rayCount = 24;
+        const rays = [];
+        for (let i = 0; i < rayCount; i++) {
+            const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)];
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.06 + Math.random() * 0.05
+            });
+            const line = new THREE.Line(geo, mat);
+            rayGroup.add(line);
+            rays.push(line);
+        }
+
+        const mainRayMat = new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.3 });
+        const mainRayPts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)];
+        const mainRayGeo = new THREE.BufferGeometry().setFromPoints(mainRayPts);
+        const mainRay = new THREE.Line(mainRayGeo, mainRayMat);
+        rayGroup.add(mainRay);
+
+        // ===== 直射点：小绿点 =====
+        const spotMat = new THREE.MeshBasicMaterial({ 
+            color: 0x44ff88,
+            depthTest: false
+        });
+        const spotGeo = new THREE.SphereGeometry(0.2, 12, 12);
+        const spot = new THREE.Mesh(spotGeo, spotMat);
+        spot.renderOrder = 999;
+        earthGroup.add(spot);
+
+        const glowMat = new THREE.MeshBasicMaterial({ 
+            color: 0x44ff88, 
+            transparent: true, 
+            opacity: 0.15,
+            depthTest: false
+        });
+        const glowGeo = new THREE.SphereGeometry(0.5, 12, 12);
+        const glow = new THREE.Mesh(glowGeo, glowMat);
+        glow.renderOrder = 998;
+        earthGroup.add(glow);
+
+        // 当地纬度标记
+        const userMarkerGroup = new THREE.Group();
+        earthGroup.add(userMarkerGroup);
+
+        const userCircleMat = new THREE.LineBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.6 });
+        const userCircleGeo = new THREE.BufferGeometry();
+        const userCirclePts = [];
+        for (let i = 0; i <= 64; i++) {
+            userCirclePts.push(new THREE.Vector3(0, 0, 0));
+        }
+        userCircleGeo.setFromPoints(userCirclePts);
+        const userCircle = new THREE.Line(userCircleGeo, userCircleMat);
+        userMarkerGroup.add(userCircle);
+
+        const userDotMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+        const userDotGeo = new THREE.SphereGeometry(0.18, 12, 12);
+        const userDot = new THREE.Mesh(userDotGeo, userDotMat);
+        userMarkerGroup.add(userDot);
+        const userDotGlow = new THREE.Mesh(
+            new THREE.SphereGeometry(0.4, 12, 12),
+            new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.12 })
+        );
+        userMarkerGroup.add(userDotGlow);
+
+        const userLabelDiv = document.createElement('div');
+        userLabelDiv.textContent = '📍 30°N';
+        userLabelDiv.style.color = '#ff8844';
+        userLabelDiv.style.fontSize = '12px';
+        userLabelDiv.style.fontWeight = 'bold';
+        userLabelDiv.style.textShadow = '0 0 16px #ff440066';
+        const userLabel = new CSS2DObject(userLabelDiv);
+        userMarkerGroup.add(userLabel);
+
+        const arcGroup = new THREE.Group();
+        earthGroup.add(arcGroup);
+
+        const arcMat = new THREE.LineBasicMaterial({ color: 0x66ddff, transparent: true, opacity: 0.8 });
+        const arcGeo = new THREE.BufferGeometry();
+        const arcPts = [];
+        for (let i = 0; i <= 30; i++) {
+            arcPts.push(new THREE.Vector3(0, 0, 0));
+        }
+        arcGeo.setFromPoints(arcPts);
+        const arcLine = new THREE.Line(arcGeo, arcMat);
+        arcGroup.add(arcLine);
+
+        const angleLabelDiv = document.createElement('div');
+        angleLabelDiv.textContent = '60°';
+        angleLabelDiv.style.color = '#66ddff';
+        angleLabelDiv.style.fontSize = '16px';
+        angleLabelDiv.style.fontWeight = 'bold';
+        angleLabelDiv.style.textShadow = '0 0 20px #66ddff66';
+        const angleLabel = new CSS2DObject(angleLabelDiv);
+        arcGroup.add(angleLabel);
+
+        function updatePresetButtons(currentLat) {
+            const presets = document.querySelectorAll('.preset-btn');
+            presets.forEach(btn => {
+                const val = parseFloat(btn.dataset.lat);
+                if (Math.abs(val - currentLat) < 0.01) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function update() {
+            lat = parseFloat(latSlider.value);
+            const latRad = lat * Math.PI / 180;
+            const deltaRad = delta * Math.PI / 180;
+
+            const latStr = lat >= 0 ? lat + '°N' : (-lat) + '°S';
+            latSliderVal.textContent = latStr;
+            latDisplay.textContent = latStr;
+
+            const angle = 90 - Math.abs(lat - delta);
+            angleDisplay.textContent = angle.toFixed(1) + '°';
+
+            const deltaStr = delta === 0 ? '0°（赤道）' : (delta > 0 ? delta + '°N' : (-delta) + '°S');
+            deltaDisplay.textContent = deltaStr;
+            formulaDisplay.textContent = `H = 90° - |${lat}° - ${delta}°| = ${angle.toFixed(1)}°`;
+
+            updatePresetButtons(lat);
+
+            // 光线
+            const rayLen = 8;
+            const mainPos = mainRay.geometry.attributes.position.array;
+            mainPos[0] = -rayLen * 0.5;
+            mainPos[1] = -rayLen * 0.5 * Math.tan(deltaRad) * 0.3;
+            mainPos[2] = 0;
+            mainPos[3] = rayLen * 0.5;
+            mainPos[4] = rayLen * 0.5 * Math.tan(deltaRad) * 0.3;
+            mainPos[5] = 0;
+            mainRay.geometry.attributes.position.needsUpdate = true;
+
+            rays.forEach((line, i) => {
+                const pos = line.geometry.attributes.position.array;
+                const offset = (i / rays.length - 0.5) * 2.5;
+                const yOff = offset * 0.8 + Math.sin(i * 1.3) * 0.2;
+                const xOff = Math.cos(i * 0.7) * 0.2;
+                pos[0] = -rayLen * 0.5 + xOff;
+                pos[1] = -rayLen * 0.5 * Math.tan(deltaRad) * 0.3 + yOff * 0.3;
+                pos[2] = offset * 0.6;
+                pos[3] = rayLen * 0.5 + xOff;
+                pos[4] = rayLen * 0.5 * Math.tan(deltaRad) * 0.3 + yOff * 0.3;
+                pos[5] = offset * 0.6;
+                line.geometry.attributes.position.needsUpdate = true;
+            });
+
+            // 直射点位置
+            const directLocal = new THREE.Vector3(
+                R * Math.cos(deltaRad),
+                R * Math.sin(deltaRad),
+                0
+            );
+            spot.position.copy(directLocal);
+            glow.position.copy(directLocal);
+
+            // 当地纬度标记
+            const userY = R * Math.sin(latRad);
+            const userR = R * Math.cos(latRad);
+            const userPos = new THREE.Vector3(userR, userY, 0);
+
+            const circlePos = userCircle.geometry.attributes.position.array;
+            for (let i = 0; i <= 64; i++) {
+                const a = (i / 64) * Math.PI * 2;
+                circlePos[i*3] = Math.cos(a) * userR;
+                circlePos[i*3+1] = userY;
+                circlePos[i*3+2] = Math.sin(a) * userR;
+            }
+            userCircle.geometry.attributes.position.needsUpdate = true;
+
+            userDot.position.copy(userPos);
+            userDotGlow.position.copy(userPos);
+            userLabel.position.set(userPos.x + 0.6, userPos.y + 0.2, userPos.z);
+            userLabelDiv.textContent = `📍 ${latStr}`;
+
+            // 高度角弧线
+            const arcRadius = 0.8;
+            const angleRad = angle * Math.PI / 180;
+            const startA = -Math.PI / 2;
+            const endA = -Math.PI / 2 + angleRad;
+
+            const arcPos = arcLine.geometry.attributes.position.array;
+            const steps = 30;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const a = startA + (endA - startA) * t;
+                const lightDirLocal = new THREE.Vector3(1, -Math.tan(deltaRad), 0).normalize();
+                const up = new THREE.Vector3(0, 1, 0);
+                const right = new THREE.Vector3().crossVectors(lightDirLocal, up).normalize();
+                const localUp = new THREE.Vector3().crossVectors(right, lightDirLocal).normalize();
+
+                const offsetVec = new THREE.Vector3()
+                    .addScaledVector(lightDirLocal, Math.cos(a) * arcRadius * 0.3)
+                    .addScaledVector(localUp, Math.sin(a) * arcRadius * 0.6);
+                arcPos[i*3] = userPos.x + offsetVec.x;
+                arcPos[i*3+1] = userPos.y + offsetVec.y;
+                arcPos[i*3+2] = userPos.z + offsetVec.z;
+            }
+            arcLine.geometry.attributes.position.needsUpdate = true;
+
+            const midA = (startA + endA) / 2;
+            const labelR = arcRadius + 0.4;
+            const lx = userPos.x + labelR * Math.cos(midA) * 0.3;
+            const ly = userPos.y + labelR * Math.sin(midA) * 0.6;
+            const lz = userPos.z + labelR * Math.sin(midA) * 0.2;
+            angleLabel.position.set(lx, ly, lz);
+            angleLabelDiv.textContent = angle.toFixed(1) + '°';
+        }
+
+        latSlider.addEventListener('input', update);
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                latSlider.value = btn.dataset.lat;
+                update();
+            });
+        });
+
+        document.querySelectorAll('.season-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                delta = parseFloat(btn.dataset.delta);
+                update();
+            });
+        });
+
+        function resize() {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            labelRenderer.setSize(w, h);
+        }
+        window.addEventListener('resize', resize);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        update();
+        animate();
+        console.log('🌍 3D 正午太阳高度角已启动 ©2026 璧山中学');
+    </script>
+</body>
+</html>

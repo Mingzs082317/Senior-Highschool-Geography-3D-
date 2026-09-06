@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>太阳直射点 · 动态教学</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.126.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.126.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', 'PingFang SC', sans-serif; background: #0a0a1a; color: white; }
+        #info {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+            padding: 14px 24px; border-radius: 40px;
+            border-left: 4px solid #ff4400;
+            pointer-events: none; z-index: 10;
+        }
+        #info h1 { margin: 0; font-size: 1.5rem; font-weight: 500; letter-spacing: 2px; color: #fff6e5; }
+        #info h1 span { color: #ff4400; font-weight: 700; margin-right: 6px; }
+        #info .sub { font-size: 0.75rem; opacity: 0.7; letter-spacing: 1px; margin-top: 4px; }
+        
+        #controls-panel {
+            position: absolute; bottom: 30px; left: 0; right: 0;
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 30px;
+            background: rgba(10, 10, 25, 0.7); backdrop-filter: blur(8px);
+            padding: 18px 28px; border-radius: 60px;
+            max-width: 600px; margin: 0 auto;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            z-index: 20; pointer-events: auto;
+        }
+        .control-group {
+            display: flex; align-items: center; gap: 10px;
+            color: #d0d9ff; font-size: 0.85rem;
+        }
+        .control-group input[type="range"] {
+            width: 100px; height: 4px; background: #3a4a8c; border-radius: 10px;
+            -webkit-appearance: none; appearance: none; outline: none;
+        }
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #ff4400; cursor: pointer;
+            box-shadow: 0 0 12px #ff4400aa; border: 1px solid #fff5;
+        }
+        .control-group label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .control-group input[type="checkbox"] {
+            width: 18px; height: 18px; accent-color: #ff4400; transform: scale(1.1); cursor: pointer;
+        }
+        .btn-reset {
+            background: #2a3a7a; border: none; color: white;
+            padding: 6px 18px; border-radius: 30px; font-size: 0.8rem;
+            cursor: pointer; transition: 0.2s;
+            border: 1px solid #4a6aaa;
+        }
+        .btn-reset:hover { background: #3a5a9a; box-shadow: 0 0 16px #3a5aaa66; transform: scale(1.02); }
+
+        #legend {
+            position: absolute; bottom: 100px; right: 20px;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            padding: 10px 16px; border-radius: 30px;
+            font-size: 0.7rem; color: #aab8ff;
+            border: 1px solid #2a3a7a;
+            pointer-events: none; z-index: 15;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .color-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+
+        #knowledge-panel {
+            position: absolute; bottom: 100px; left: 20px;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(6px);
+            padding: 14px 20px; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            max-width: 280px; font-size: 0.7rem; line-height: 1.6;
+            color: #ccd9ff; pointer-events: none; z-index: 15;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+        #knowledge-panel .title {
+            color: #ff4400; font-weight: 600; letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255,68,0,0.2); padding-bottom: 4px; margin-bottom: 6px;
+        }
+        #knowledge-panel .highlight { color: #ff4400; font-weight: 500; }
+
+        /* 直射点简图 */
+        #direct-svg-container {
+            position: absolute;
+            bottom: 320px;
+            left: 20px;
+            width: 240px;
+            height: 150px;
+            pointer-events: none;
+            z-index: 16;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            border-radius: 16px;
+            border: 1px solid rgba(255,68,0,0.2);
+            padding: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        }
+        #direct-svg-container svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #direct-svg-container .label {
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #ff4400;
+            opacity: 0.8;
+            white-space: nowrap;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        @media (max-width: 700px) {
+            #controls-panel { flex-direction: column; align-items: center; gap: 12px; border-radius: 30px; padding: 16px 20px; max-width: 94%; bottom: 16px; }
+            .control-group { width: 100%; justify-content: center; flex-wrap: wrap; }
+            #info { top: 12px; left: 12px; padding: 8px 16px; }
+            #info h1 { font-size: 1.2rem; }
+            #legend { bottom: 170px; right: 10px; padding: 6px 12px; font-size: 0.6rem; }
+            #knowledge-panel { bottom: 140px; left: 10px; max-width: 200px; padding: 10px 14px; font-size: 0.6rem; }
+            #direct-svg-container { bottom: 270px; left: 10px; width: 160px; height: 100px; }
+            #direct-svg-container .label { font-size: 9px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1><span>☀️</span> 太阳直射点 · 动态教学</h1>
+        <div class="sub">太阳绕地球公转 · 直射点回归运动 · 二分二至</div>
+    </div>
+
+    <div id="legend">
+        <div class="legend-item"><span class="color-dot" style="background:#ffaa44;"></span> 太阳</div>
+        <div class="legend-item"><span class="color-dot" style="background:#3a8cff;"></span> 地球</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ff4400;"></span> 直射点</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ffff44;"></span> 直射光线</div>
+    </div>
+
+    <div id="direct-svg-container">
+        <div class="label">☀️ 直射点纬度</div>
+        <svg viewBox="0 0 160 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="80" cy="55" r="32" fill="none" stroke="#3a8cff" stroke-width="1.5" opacity="0.6"/>
+            <line x1="48" y1="55" x2="112" y2="55" stroke="#ffaa44" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+            <line x1="80" y1="15" x2="80" y2="95" stroke="#88ddff" stroke-width="1.2" opacity="0.5"/>
+            <line x1="55" y1="41" x2="105" y2="41" stroke="#ff8844" stroke-width="0.8" opacity="0.3" stroke-dasharray="2,2"/>
+            <line x1="55" y1="69" x2="105" y2="69" stroke="#ff8844" stroke-width="0.8" opacity="0.3" stroke-dasharray="2,2"/>
+            <circle id="direct-dot" cx="80" cy="55" r="4" fill="#ff4400" opacity="0.9"/>
+            <circle id="direct-glow" cx="80" cy="55" r="8" fill="#ff4400" opacity="0.2"/>
+            <line id="direct-line" x1="80" y1="8" x2="80" y2="23" stroke="#ffff44" stroke-width="1.2" opacity="0.6"/>
+            <text x="80" y="100" text-anchor="middle" font-size="7" fill="#88ddff" opacity="0.5">赤道</text>
+            <text x="108" y="43" text-anchor="start" font-size="5" fill="#ff8844" opacity="0.4">23.5°N</text>
+            <text x="108" y="71" text-anchor="start" font-size="5" fill="#ff8844" opacity="0.4">23.5°S</text>
+        </svg>
+    </div>
+
+    <div id="knowledge-panel">
+        <div class="title">☀️ 太阳直射点 · 回归运动</div>
+        <div>
+            <span class="highlight">直射点</span> 在 <strong>南北回归线</strong> 之间往返移动。<br>
+            · 春分 (3.21) → 赤道 0°<br>
+            · 夏至 (6.22) → 北回归线 23.5°N<br>
+            · 秋分 (9.23) → 赤道 0°<br>
+            · 冬至 (12.22) → 南回归线 23.5°S<br>
+            <span style="opacity:0.6; font-size:0.6rem;">黄赤交角 23.5° 决定回归线纬度</span>
+        </div>
+        <div style="margin-top:4px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px; font-size:0.6rem; opacity:0.7;">
+            🌍 地球固定 · 太阳绕地球公转
+        </div>
+        <div style="margin-top:2px; font-size:0.55rem; opacity:0.5;">
+            ©2026 璧山中学电子科教与融媒体发展中心
+        </div>
+    </div>
+
+    <div id="controls-panel">
+        <div class="control-group">
+            <span>⏵ 公转速度</span>
+            <input type="range" id="orbitSpeed" min="0.0" max="2.0" step="0.05" value="0.5">
+            <span id="speedLabel">0.5x</span>
+        </div>
+        <div class="control-group">
+            <label><input type="checkbox" id="showRays" checked> 显示光线</label>
+        </div>
+        <div class="control-group">
+            <button class="btn-reset" id="resetViewBtn">⟲ 重置视角</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- 场景 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+
+        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(10, 6, 14);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = false;
+        document.body.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.left = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 5;
+        controls.maxDistance = 30;
+        controls.target.set(0, 0, 0);
+
+        // --- 灯光 ---
+        const ambient = new THREE.AmbientLight(0x446688, 0.6);
+        scene.add(ambient);
+        const fillLight = new THREE.DirectionalLight(0x88bbff, 0.5);
+        fillLight.position.set(1, 1, 1);
+        scene.add(fillLight);
+
+        // --- 星空 ---
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 2000;
+        const pos = new Float32Array(starsCount * 3);
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            const r = 30 + Math.random() * 30;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            pos[i] = Math.sin(phi) * Math.cos(theta) * r;
+            pos[i+1] = Math.sin(phi) * Math.sin(theta) * r;
+            pos[i+2] = Math.cos(phi) * r;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+        const stars = new THREE.Points(starsGeo, starsMat);
+        scene.add(stars);
+
+        // --- 地球 (有地轴倾斜23.5°，固定在原点) ---
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+        earthGroup.rotation.x = 23.5 * Math.PI / 180;
+
+        const textureLoader = new THREE.TextureLoader();
+        const mapTex = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+        const earthGeo = new THREE.SphereGeometry(2.2, 64, 64);
+        const earthMat = new THREE.MeshPhongMaterial({
+            map: mapTex,
+            shininess: 5,
+            specular: new THREE.Color(0x224466),
+            emissive: new THREE.Color(0x112233),
+            emissiveIntensity: 0.05
+        });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        earth.castShadow = false;
+        earth.receiveShadow = false;
+        earthGroup.add(earth);
+
+        const labelDiv = document.createElement('div');
+        labelDiv.textContent = '🌍 地球';
+        labelDiv.style.color = '#88ddff';
+        labelDiv.style.fontSize = '16px';
+        labelDiv.style.fontWeight = 'bold';
+        labelDiv.style.textShadow = '0 0 16px #2266cc';
+        const label = new CSS2DObject(labelDiv);
+        label.position.set(0, 2.8, 0);
+        earthGroup.add(label);
+
+        // --- 地轴线 ---
+        const axisGroup = new THREE.Group();
+        const axisLength = 2.6;
+        const axisMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.6, transparent: true });
+        const axisPoints = [
+            new THREE.Vector3(0, -axisLength, 0),
+            new THREE.Vector3(0, axisLength, 0)
+        ];
+        const axisGeo = new THREE.BufferGeometry().setFromPoints(axisPoints);
+        const axisLine = new THREE.Line(axisGeo, axisMat);
+        axisGroup.add(axisLine);
+        const capMat = new THREE.MeshBasicMaterial({ color: 0x88ddff });
+        const capGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        const capTop = new THREE.Mesh(capGeo, capMat);
+        capTop.position.set(0, axisLength, 0);
+        axisGroup.add(capTop);
+        const capBottom = new THREE.Mesh(capGeo, capMat);
+        capBottom.position.set(0, -axisLength, 0);
+        axisGroup.add(capBottom);
+        const nLabelDiv = document.createElement('div');
+        nLabelDiv.textContent = 'N';
+        nLabelDiv.style.color = '#88ddff';
+        nLabelDiv.style.fontSize = '14px';
+        nLabelDiv.style.fontWeight = 'bold';
+        nLabelDiv.style.textShadow = '0 0 12px #2266aa';
+        const nLabel = new CSS2DObject(nLabelDiv);
+        nLabel.position.set(0, axisLength + 0.3, 0);
+        axisGroup.add(nLabel);
+        earthGroup.add(axisGroup);
+
+        // --- 赤道圈 ---
+        const ringPoints = [];
+        const rRing = 2.25;
+        for (let i = 0; i <= 64; i++) {
+            const a = (i / 64) * Math.PI * 2;
+            ringPoints.push(new THREE.Vector3(Math.cos(a) * rRing, 0, Math.sin(a) * rRing));
+        }
+        const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPoints);
+        const ringMat = new THREE.LineBasicMaterial({ color: 0xffaa44, opacity: 0.3, transparent: true });
+        const ringLine = new THREE.Line(ringGeo, ringMat);
+        earthGroup.add(ringLine);
+
+        // --- 南北回归线 ---
+        const tropicLat = 23.5 * Math.PI / 180;
+        const makeLatCircle = (lat, color) => {
+            const pts = [];
+            const r = 2.25 * Math.cos(lat);
+            const y = 2.25 * Math.sin(lat);
+            for (let i = 0; i <= 64; i++) {
+                const a = (i / 64) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+            }
+            const g = new THREE.BufferGeometry().setFromPoints(pts);
+            const m = new THREE.LineBasicMaterial({ color, opacity: 0.3, transparent: true });
+            return new THREE.Line(g, m);
+        };
+        earthGroup.add(makeLatCircle(tropicLat, 0xff8844));
+        earthGroup.add(makeLatCircle(-tropicLat, 0xff8844));
+
+        // --- 太阳 (绕地球公转) ---
+        const sunGroup = new THREE.Group();
+        scene.add(sunGroup);
+        const sunDist = 6.5;
+
+        const sunGeo = new THREE.SphereGeometry(0.9, 32, 32);
+        const sunMat = new THREE.MeshStandardMaterial({
+            color: 0xffaa44,
+            emissive: 0xff5500,
+            emissiveIntensity: 1.5,
+        });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        sunGroup.add(sunMesh);
+
+        const glowGeo = new THREE.BufferGeometry();
+        const glowCount = 150;
+        const glowPos = new Float32Array(glowCount * 3);
+        for (let i = 0; i < glowCount; i++) {
+            const r = 1.0 + Math.random() * 0.6;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            glowPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+            glowPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+            glowPos[i*3+2] = Math.cos(phi) * r;
+        }
+        glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+        const glowMat = new THREE.PointsMaterial({
+            color: 0xffaa33, size: 0.08,
+            transparent: true, blending: THREE.AdditiveBlending
+        });
+        const glow = new THREE.Points(glowGeo, glowMat);
+        sunGroup.add(glow);
+
+        const sunLabelDiv = document.createElement('div');
+        sunLabelDiv.textContent = '☀️ 太阳';
+        sunLabelDiv.style.color = '#ffaa44';
+        sunLabelDiv.style.fontSize = '16px';
+        sunLabelDiv.style.fontWeight = 'bold';
+        sunLabelDiv.style.textShadow = '0 0 20px #ff8800';
+        const sunLabel = new CSS2DObject(sunLabelDiv);
+        sunLabel.position.set(0, 1.6, 0);
+        sunGroup.add(sunLabel);
+
+        // 公转轨道
+        const orbitPoints = [];
+        for (let i = 0; i <= 128; i++) {
+            const a = (i / 128) * Math.PI * 2;
+            orbitPoints.push(new THREE.Vector3(Math.cos(a) * sunDist, 0, Math.sin(a) * sunDist));
+        }
+        const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+        const orbitMat = new THREE.LineBasicMaterial({ color: 0x88ddff, opacity: 0.2, transparent: true });
+        const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+        scene.add(orbitLine);
+
+        // 二分二至标记
+        const markPositions = [
+            { angle: 0, label: '春分' },
+            { angle: Math.PI/2, label: '夏至' },
+            { angle: Math.PI, label: '秋分' },
+            { angle: 3*Math.PI/2, label: '冬至' }
+        ];
+        markPositions.forEach(({ angle, label }) => {
+            const x = Math.cos(angle) * sunDist;
+            const z = Math.sin(angle) * sunDist;
+            const div = document.createElement('div');
+            div.textContent = label;
+            div.style.color = '#88ddff';
+            div.style.fontSize = '12px';
+            div.style.opacity = '0.5';
+            div.style.textShadow = '0 0 8px #000';
+            const obj = new CSS2DObject(div);
+            obj.position.set(x, -0.8, z);
+            scene.add(obj);
+        });
+
+        // --- 光线系统 ---
+        const rayGroup = new THREE.Group();
+        scene.add(rayGroup);
+
+        const rayCount = 16;
+        for (let i = 0; i < rayCount; i++) {
+            const geo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, 0)
+            ]);
+            const mat = new THREE.LineBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.1 + Math.random() * 0.08
+            });
+            const line = new THREE.Line(geo, mat);
+            rayGroup.add(line);
+        }
+
+        // 直射光线 (红色)
+        const directRayMat = new THREE.LineBasicMaterial({ color: 0xff4400, opacity: 0.9, transparent: true });
+        const directRayGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, 0)
+        ]);
+        const directRay = new THREE.Line(directRayGeo, directRayMat);
+        rayGroup.add(directRay);
+
+        // 直射点标记 (在地球表面)
+        const spotMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+        const spotGeo = new THREE.SphereGeometry(0.18, 8, 8);
+        const spot = new THREE.Mesh(spotGeo, spotMat);
+        earthGroup.add(spot);
+        // 光晕
+        const glowSpotMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.15 });
+        const glowSpotGeo = new THREE.SphereGeometry(0.35, 8, 8);
+        const glowSpot = new THREE.Mesh(glowSpotGeo, glowSpotMat);
+        earthGroup.add(glowSpot);
+
+        // --- 状态变量 ---
+        let orbitAngle = 0;
+        let speedFactor = 0.5;
+        let showRays = true;
+
+        // --- DOM ---
+        const speedSlider = document.getElementById('orbitSpeed');
+        const speedLabel = document.getElementById('speedLabel');
+        const toggleRays = document.getElementById('showRays');
+        const resetBtn = document.getElementById('resetViewBtn');
+
+        speedSlider.addEventListener('input', (e) => {
+            speedFactor = parseFloat(e.target.value);
+            speedLabel.textContent = speedFactor.toFixed(1) + 'x';
+        });
+
+        toggleRays.addEventListener('change', (e) => {
+            showRays = e.target.checked;
+            rayGroup.visible = showRays;
+        });
+
+        resetBtn.addEventListener('click', () => {
+            camera.position.set(10, 6, 14);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 更新直射点简图 ---
+        function updateDirectSVG(latDeg) {
+            const cx = 80, cy = 55, radius = 32;
+            const yPos = cy - (latDeg / 23.5) * radius;
+            const clampedY = Math.max(cy - radius, Math.min(cy + radius, yPos));
+            
+            const dot = document.getElementById('direct-dot');
+            const glow = document.getElementById('direct-glow');
+            const line = document.getElementById('direct-line');
+            
+            if (dot) dot.setAttribute('cy', clampedY);
+            if (glow) glow.setAttribute('cy', clampedY);
+            if (line) {
+                line.setAttribute('x1', cx);
+                line.setAttribute('y1', 8);
+                line.setAttribute('x2', cx);
+                line.setAttribute('y2', clampedY - 4);
+            }
+        }
+
+        // --- 核心更新 ---
+        function updateScene(angle) {
+            const sx = Math.cos(angle) * sunDist;
+            const sz = Math.sin(angle) * sunDist;
+            sunGroup.position.set(sx, 0, sz);
+
+            const lightDir = new THREE.Vector3(sx, 0, sz).normalize();
+
+            const localLightDir = lightDir.clone().applyQuaternion(
+                new THREE.Quaternion().copy(earthGroup.quaternion).invert()
+            );
+
+            const hitPointLocal = localLightDir.clone().multiplyScalar(2.25);
+            spot.position.copy(hitPointLocal);
+            glowSpot.position.copy(hitPointLocal);
+
+            const latRad = Math.asin(Math.max(-1, Math.min(1, hitPointLocal.y / 2.25)));
+            const latDeg = latRad * 180 / Math.PI;
+            updateDirectSVG(latDeg);
+
+            rayGroup.children.forEach(child => {
+                if (child.isLine) {
+                    const positions = child.geometry.attributes.position.array;
+                    if (child === directRay) {
+                        const hitWorld = hitPointLocal.clone().applyQuaternion(earthGroup.quaternion);
+                        positions[0] = sx; positions[1] = 0; positions[2] = sz;
+                        positions[3] = hitWorld.x; positions[4] = hitWorld.y; positions[5] = hitWorld.z;
+                    } else {
+                        const offsetX = (Math.random() - 0.5) * 1.6;
+                        const offsetZ = (Math.random() - 0.5) * 1.6;
+                        const startX = sx + offsetX * 0.5;
+                        const startZ = sz + offsetZ * 0.5;
+                        const endX = 0 + offsetX * 0.5;
+                        const endZ = 0 + offsetZ * 0.5;
+                        positions[0] = startX; positions[1] = (Math.random() - 0.5) * 0.8; positions[2] = startZ;
+                        positions[3] = endX; positions[4] = (Math.random() - 0.5) * 0.8; positions[5] = endZ;
+                    }
+                    child.geometry.attributes.position.needsUpdate = true;
+                }
+            });
+        }
+
+        // --- 动画 ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            orbitAngle += 0.003 * speedFactor;
+            if (orbitAngle > Math.PI * 2) orbitAngle -= Math.PI * 2;
+
+            updateScene(orbitAngle);
+
+            stars.rotation.y += 0.00008;
+
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+
+        updateScene(0);
+        animate();
+
+        console.log('☀️ 太阳直射点教学已启动 ©2026 璧山中学');
+    </script>
+</body>
+</html>
